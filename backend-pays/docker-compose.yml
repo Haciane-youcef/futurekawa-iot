@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: futurekawa-db
+    environment:
+      POSTGRES_USER: futurekawa
+      POSTGRES_PASSWORD: futurekawa123
+      POSTGRES_DB: futurekawa
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U futurekawa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Broker MQTT Mosquitto
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: futurekawa-mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  # Backend Python FastAPI
+  backend:
+    build: .
+    container_name: futurekawa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://futurekawa:futurekawa123@postgres:5432/futurekawa
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    restart: always
+
+volumes:
+  postgres_data:
