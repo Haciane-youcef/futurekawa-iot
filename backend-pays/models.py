@@ -23,4 +23,17 @@ class Lot(Base):
     exploitation  = Column(String, nullable=False)
     entrepot      = Column(String, nullable=False)
     date_stockage = Column(DateTime, default=datetime.utcnow)
-    statut        = Column(String, default="conforme")  # conforme / alerte / perime
+    statut        = Column(String, default="conforme")
+
+# Table de configuration (seuils + intervalle)
+class Config(Base):
+    __tablename__ = "config"
+
+    id                      = Column(Integer, primary_key=True, index=True)
+    pays                    = Column(String, nullable=False)
+    temp_ideale             = Column(Float, nullable=False)
+    hum_ideale              = Column(Float, nullable=False)
+    tolerance_temp          = Column(Float, nullable=False)
+    tolerance_hum           = Column(Float, nullable=False)
+    email_destinataire      = Column(String, nullable=False)
+    intervalle_verification = Column(Integer, nullable=False)  # en secondes
