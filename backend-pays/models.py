@@ -37,3 +37,17 @@ class Config(Base):
     tolerance_hum           = Column(Float, nullable=False)
     email_destinataire      = Column(String, nullable=False)
     intervalle_verification = Column(Integer, nullable=False)  # en secondes
+
+
+class Alerte(Base):
+    __tablename__ = "alertes"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    type_alerte = Column(String, nullable=False)  # "temperature", "humidite", "lot_perime"
+    message     = Column(String, nullable=False)
+    lot_id      = Column(String, nullable=True)   # seulement pour alertes lot
+    valeur      = Column(Float, nullable=True)    # valeur mesurée
+    seuil_min   = Column(Float, nullable=True)
+    seuil_max   = Column(Float, nullable=True)
+    date_alerte = Column(DateTime, default=datetime.utcnow)
+    statut      = Column(String, default="non_lue")  # "non_lue" / "lue"    

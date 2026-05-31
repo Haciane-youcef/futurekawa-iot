@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from database import get_db, engine, SessionLocal
-from models import Base, Mesure, Lot, Config
+from models import Base, Mesure, Lot, Config, Alerte
 
 # =====================
 # INITIALISATION
@@ -29,10 +29,10 @@ MQTT_TOPIC  = "capteur/mesures"
 # =====================
 # CONFIG EMAIL
 # =====================
-SMTP_SERVER    = "smtp.gmail.com"
-SMTP_PORT      = 587
-SENDER_EMAIL   = " "    # ← remplace
-SENDER_PASSWORD = " "  # ← mot de passe application Gmail
+SMTP_SERVER     = "smtp.gmail.com"
+SMTP_PORT       = 587
+SENDER_EMAIL    = "email@gmail.com"
+SENDER_PASSWORD = "le passwor de mail"
 
 # =====================
 # CACHE CONFIG
@@ -130,27 +130,60 @@ def verifier_alertes_mesures(temperature, humidite):
         print("Pas de config - alertes desactivees")
         return
 
-    alertes = []
+    db = SessionLocal()
+    try:
+        alertes_email = []
 
-    if temperature < (config["temp_ideale"] - config["tolerance_temp"]) or \
-       temperature > (config["temp_ideale"] + config["tolerance_temp"]):
-        alertes.append(
-            f"- Temperature: {temperature}C "
-            f"(ideal: {config['temp_ideale']}C "
-            f"+/- {config['tolerance_temp']}C)"
-        )
+        # Vérif température
+        if temperature < (config["temp_ideale"] - config["tolerance_temp"]) or \
+           temperature > (config["temp_ideale"] + config["tolerance_temp"]):
 
-    if humidite < (config["hum_ideale"] - config["tolerance_hum"]) or \
-       humidite > (config["hum_ideale"] + config["tolerance_hum"]):
-        alertes.append(
-            f"- Humidite: {humidite}% "
-            f"(ideal: {config['hum_ideale']}% "
-            f"+/- {config['tolerance_hum']}%)"
-        )
+            alerte = Alerte(
+                type_alerte = "temperature",
+                message     = f"Temperature anormale : {temperature}C (ideal: {config['temp_ideale']}C +/- {config['tolerance_temp']}C)",
+                valeur      = temperature,
+                seuil_min   = config["temp_ideale"] - config["tolerance_temp"],
+                seuil_max   = config["temp_ideale"] + config["tolerance_temp"],
+                date_alerte = datetime.utcnow(),
+                statut      = "non_lue"
+            )
+            db.add(alerte)
+            db.commit()
+            print(f"Alerte temperature sauvegardee en BDD")
 
-    if alertes:
-        details = "\n".join(alertes)
-        body = f"""
+            alertes_email.append(
+                f"- Temperature: {temperature}C "
+                f"(ideal: {config['temp_ideale']}C "
+                f"+/- {config['tolerance_temp']}C)"
+            )
+
+        # Vérif humidité
+        if humidite < (config["hum_ideale"] - config["tolerance_hum"]) or \
+           humidite > (config["hum_ideale"] + config["tolerance_hum"]):
+
+            alerte = Alerte(
+                type_alerte = "humidite",
+                message     = f"Humidite anormale : {humidite}% (ideal: {config['hum_ideale']}% +/- {config['tolerance_hum']}%)",
+                valeur      = humidite,
+                seuil_min   = config["hum_ideale"] - config["tolerance_hum"],
+                seuil_max   = config["hum_ideale"] + config["tolerance_hum"],
+                date_alerte = datetime.utcnow(),
+                statut      = "non_lue"
+            )
+            db.add(alerte)
+            db.commit()
+            print(f"Alerte humidite sauvegardee en BDD")
+
+            alertes_email.append(
+                f"- Humidite: {humidite}% "
+                f"(ideal: {config['hum_ideale']}% "
+                f"+/- {config['tolerance_hum']}%)"
+            )
+
+        # Envoi email si alertes
+        if alertes_email:
+            details = "\n".join(alertes_email)
+            body = f"""
 Bonjour 👋,
 
 🔍 Une anomalie a été détectée dans les conditions de stockage.
@@ -167,12 +200,15 @@ Merci de votre vigilance ! ✅
 
 Cordialement,
 L'équipe FutureKawa 🤖
-        """
-        send_email(
-            config["email_destinataire"],
-            "🚨 Alerte : Anomalie détectée dans les conditions de stockage !",
-            body
-        )
+            """
+            send_email(
+                config["email_destinataire"],
+                "🚨 Alerte : Anomalie détectée dans les conditions de stockage !",
+                body
+            )
+
+    finally:
+        db.close()
 
 # =====================
 # VÉRIFICATION ALERTES LOTS
@@ -194,7 +230,18 @@ def verifier_alertes_lots():
 
         for lot in lots_anciens:
             lot.statut = "perime"
+
+            # Sauvegarde alerte en BDD
+            alerte = Alerte(
+                type_alerte = "lot_perime",
+                message     = f"Lot {lot.lot_id} depasse 365 jours de stockage",
+                lot_id      = lot.lot_id,
+                date_alerte = datetime.utcnow(),
+                statut      = "non_lue"
+            )
+            db.add(alerte)
             db.commit()
+            print(f"Alerte lot perime sauvegardee en BDD : {lot.lot_id}")
 
             body = f"""
 Bonjour 👋,
@@ -220,7 +267,6 @@ L'équipe FutureKawa 🤖
                 f"🚨 Alerte : Lot périmé {lot.lot_id} !",
                 body
             )
-            print(f"Alerte lot perime envoye : {lot.lot_id}")
 
     finally:
         db.close()
@@ -276,8 +322,15 @@ def demarrer_mqtt():
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_forever()
+
+    while True:
+        try:
+            print(f"Tentative connexion MQTT {MQTT_BROKER}:{MQTT_PORT}...")
+            client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            client.loop_forever()
+        except Exception as e:
+            print(f"MQTT echec connexion : {e} - retry dans 5s")
+            time.sleep(5)
 
 threading.Thread(target=demarrer_mqtt,    daemon=True).start()
 threading.Thread(target=tache_periodique, daemon=True).start()
@@ -394,5 +447,54 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(existing)
     vider_cache()
-
     return {"message": "Config mise a jour", "config": existing}
+
+# ── Alertes ──────────────────────────────────────────
+@app.get("/alertes")
+def get_alertes(db: Session = Depends(get_db)):
+    return db.query(Alerte).order_by(Alerte.date_alerte.desc()).all()
+
+@app.get("/alertes/non-lues")
+def get_alertes_non_lues(db: Session = Depends(get_db)):
+    return db.query(Alerte).filter(
+        Alerte.statut == "non_lue"
+    ).order_by(Alerte.date_alerte.desc()).all()
+
+@app.get("/alertes/count")
+def get_alertes_count(db: Session = Depends(get_db)):
+    total    = db.query(Alerte).count()
+    non_lues = db.query(Alerte).filter(Alerte.statut == "non_lue").count()
+    return {"total": total, "non_lues": non_lues}
+
+@app.put("/alertes/{alerte_id}/lue")
+def marquer_alerte_lue(alerte_id: int, db: Session = Depends(get_db)):
+    alerte = db.query(Alerte).filter(Alerte.id == alerte_id).first()
+    if not alerte:
+        raise HTTPException(status_code=404, detail="Alerte non trouvee")
+    alerte.statut = "lue"
+    db.commit()
+    db.refresh(alerte)
+    return alerte
+
+@app.put("/alertes/toutes/lues")
+def marquer_toutes_lues(db: Session = Depends(get_db)):
+    db.query(Alerte).filter(
+        Alerte.statut == "non_lue"
+    ).update({"statut": "lue"})
+    db.commit()
+    return {"message": "Toutes les alertes marquees comme lues"}
+
+@app.delete("/alertes/{alerte_id}")
+def supprimer_alerte(alerte_id: int, db: Session = Depends(get_db)):
+    alerte = db.query(Alerte).filter(Alerte.id == alerte_id).first()
+    if not alerte:
+        raise HTTPException(status_code=404, detail="Alerte non trouvee")
+    db.delete(alerte)
+    db.commit()
+    return {"message": "Alerte supprimee"}
+
+@app.delete("/alertes")
+def supprimer_toutes_alertes(db: Session = Depends(get_db)):
+    db.query(Alerte).delete()
+    db.commit()
+    return {"message": "Toutes les alertes supprimees"}
