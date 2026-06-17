@@ -1,6 +1,6 @@
 import os
 import json
-from sqlite3 import IntegrityError
+from sqlalchemy.exc import IntegrityError
 import threading
 import time
 import smtplib
