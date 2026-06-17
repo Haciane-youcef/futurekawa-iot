@@ -152,7 +152,7 @@ pipeline {
                 dir('backend-pays') {
                     sh '''
                         pip install pytest pytest-html coverage pytest-cov httpx --quiet --break-system-packages
-                        pip install fastapi==0.110.0 uvicorn==0.29.0 sqlalchemy==2.0.29 pydantic paho-mqtt==1.6.1 --quiet --break-system-packages
+                        pip install fastapi==0.110.0 uvicorn==0.29.0 sqlalchemy>=2.0.35 pydantic>=2.9.0 paho-mqtt==1.6.1 --quiet --break-system-packages
 
                         mkdir -p "${TEST_RESULTS_DIR}/unit" "${COVERAGE_DIR}"
 
