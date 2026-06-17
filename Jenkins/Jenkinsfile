@@ -74,24 +74,26 @@ pipeline {
             steps {
                 echo '====== STAGE 1 : Checkout ======'
                 checkout scm
-                sh '''
-                    echo "Commit  : $(git log -1 --format="%H")"
-                    echo "Auteur  : $(git log -1 --format="%an")"
-                    echo "Message : $(git log -1 --format="%s")"
-                    echo "Branch  : $(git branch --show-current 2>/dev/null || echo detached)"
-                    echo ""
-                    echo "── Vérification structure projet ──"
-                    for f in main.py database.py models.py requirements.txt Dockerfile docker-compose.yml; do
-                        [ -f "$f" ] && echo "  OK : $f" || { echo "  MANQUANT : $f"; exit 1; }
-                    done
-                    echo ""
-                    echo "── Vérification structure tests ──"
-                    for d in tests/unit tests/integration tests/bdd tests/bdd/features; do
-                        [ -d "$d" ] && echo "  OK : $d/" || echo "  AVERTISSEMENT : $d/ manquant"
-                    done
-                '''
+                dir('backend-pays') {
+                    sh '''
+                        echo "Commit  : $(git log -1 --format="%H")"
+                        echo "Auteur  : $(git log -1 --format="%an")"
+                        echo "Message : $(git log -1 --format="%s")"
+                        echo "Branch  : $(git branch --show-current 2>/dev/null || echo detached)"
+                        echo ""
+                        echo "── Vérification structure projet ──"
+                        for f in main.py database.py models.py requirements.txt Dockerfile docker-compose.yml; do
+                            [ -f "$f" ] && echo "  OK : $f" || { echo "  MANQUANT : $f"; exit 1; }
+                        done
+                        echo ""
+                        echo "── Vérification structure tests ──"
+                        for d in tests/unit tests/integration tests/bdd tests/bdd/features; do
+                            [ -d "$d" ] && echo "  OK : $d/" || echo "  AVERTISSEMENT : $d/ manquant"
+                        done
+                    '''
+                }
             }
-        }
+        }    
 
         // ════════════════════════════════════════════════════
         // STAGE 2 — LINT (flake8)
@@ -523,7 +525,7 @@ EOF
             sh 'docker image prune -f 2>/dev/null || true'
 
             cleanWs()
-            
+
             // Publication couverture HTML si présent
             publishHTML(target: [
                 allowMissing          : true,
