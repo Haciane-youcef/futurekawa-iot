@@ -404,11 +404,9 @@ pipeline {
 
         // ════════════════════════════════════════════════════
         // STAGE 8 — PUSH DOCKER HUB (main/master)
+        // STAGE 8 — PUSH DOCKER HUB
         // ════════════════════════════════════════════════════
         stage('8 — Push Docker Hub') {
-            when {
-                anyOf { branch 'main'; branch 'master' }
-            }
             steps {
                 echo '====== STAGE 8 : Push Docker Hub ======'
                 withCredentials([usernamePassword(
