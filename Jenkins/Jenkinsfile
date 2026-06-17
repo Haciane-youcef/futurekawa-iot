@@ -313,7 +313,7 @@ pipeline {
                                 -Dsonar.python.coverage.reportPaths="${COVERAGE_PATHS}" \
                                 -Dsonar.python.xunit.reportPath="${JUNIT_PATHS}" \
                                 -Dsonar.sourceEncoding=UTF-8 \
-                                -Dsonar.host.url="http://localhost:9000" \
+                                -Dsonar.host.url="http://sonarqube:9000" \
                                 -Dsonar.token="${SONAR_TOKEN}" \
                                 -Dsonar.scm.disabled=true \
                                 -Dsonar.qualitygate.wait=true \
@@ -521,7 +521,7 @@ EOF
             // Nettoyage images dangling
             sh 'docker image prune -f 2>/dev/null || true'
 
-            cleanWs()
+            
 
             // Publication couverture HTML si présent
             publishHTML(target: [
@@ -532,6 +532,8 @@ EOF
                 reportFiles           : '*/report.html',
                 reportName            : 'Rapports de Tests'
             ])
+
+            cleanWs()
         }
     }
 }
