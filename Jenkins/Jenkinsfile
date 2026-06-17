@@ -156,7 +156,7 @@ pipeline {
 
                         mkdir -p "${TEST_RESULTS_DIR}/unit" "${COVERAGE_DIR}"
 
-                        python -m pytest tests/unit/ \
+                        python3 -m pytest tests/unit/ \
                             -v \
                             --tb=short \
                             -p no:cacheprovider \
@@ -191,7 +191,7 @@ pipeline {
                     sh '''
                         mkdir -p "${TEST_RESULTS_DIR}/integration"
 
-                        python -m pytest tests/integration/ \
+                        python3 -m pytest tests/integration/ \
                             -v \
                             --tb=short \
                             -p no:cacheprovider \
@@ -227,7 +227,7 @@ pipeline {
 
                     mkdir -p "${TEST_RESULTS_DIR}/bdd"
 
-                    python -m pytest tests/bdd/ \
+                    python3 -m pytest tests/bdd/ \
                         -v \
                         --tb=short \
                         -p no:cacheprovider \
@@ -260,7 +260,7 @@ pipeline {
         // ════════════════════════════════════════════════════
         stage('6 — SonarQube Backend') {
             steps {
-                echo '====== STAGE 6 : SonarQube — Backend Python ======'
+                echo '====== STAGE 6 : SonarQube — Backend python3 ======'
                 withCredentials([string(
                     credentialsId: 'sonar-token',
                     variable: 'SONAR_TOKEN'
