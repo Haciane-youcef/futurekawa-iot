@@ -149,35 +149,32 @@ pipeline {
         stage('3 — Tests Unitaires') {
             steps {
                 echo '====== STAGE 3 : Tests unitaires ======'
-                sh '''
-                    pip install pytest pytest-html coverage pytest-cov httpx --quiet
-                    pip install fastapi==0.110.0 uvicorn==0.29.0 sqlalchemy==2.0.29 \
-                        pydantic==2.6.4 paho-mqtt==1.6.1 --quiet
+                dir('backend-pays') {
+                    sh '''
+                        pip install pytest pytest-html coverage pytest-cov httpx --quiet
+                        pip install fastapi==0.110.0 uvicorn==0.29.0 sqlalchemy==2.0.29 pydantic==2.6.4 paho-mqtt==1.6.1 --quiet
 
-                    mkdir -p "${TEST_RESULTS_DIR}/unit" "${COVERAGE_DIR}"
+                        mkdir -p "${TEST_RESULTS_DIR}/unit" "${COVERAGE_DIR}"
 
-                    python -m pytest tests/unit/ \
-                        -v \
-                        --tb=short \
-                        -p no:cacheprovider \
-                        --junitxml="${TEST_RESULTS_DIR}/unit/results.xml" \
-                        --html="${TEST_RESULTS_DIR}/unit/report.html" \
-                        --self-contained-html \
-                        --cov=. \
-                        --cov-report=xml:"${COVERAGE_DIR}/coverage-unit.xml" \
-                        --cov-report=term-missing \
-                        --cov-config=.coveragerc
-
-                    echo "✅ Tests unitaires OK"
-                '''
+                        python -m pytest tests/unit/ \
+                            -v \
+                            --tb=short \
+                            -p no:cacheprovider \
+                            --junitxml="${TEST_RESULTS_DIR}/unit/results.xml" \
+                            --html="${TEST_RESULTS_DIR}/unit/report.html" \
+                            --self-contained-html \
+                            --cov=. \
+                            --cov-report=xml:"${COVERAGE_DIR}/coverage-unit.xml" \
+                            --cov-report=term-missing \
+                            --cov-config=../.coveragerc
+                    '''
+                }
             }
             post {
                 always {
-                    junit allowEmptyResults: true,
-                          testResults: 'test-results/unit/results.xml'
-                    archiveArtifacts artifacts: 'test-results/unit/report.html',
-                                     allowEmptyArchive: true, fingerprint: true
-                    sh 'rm -f futurekawa_test.db || true'
+                    junit allowEmptyResults: true, testResults: 'backend-pays/test-results/unit/results.xml'
+                    archiveArtifacts artifacts: 'backend-pays/test-results/unit/report.html', allowEmptyArchive: true
+                    sh 'rm -f backend-pays/futurekawa_test.db || true'
                 }
             }
         }
@@ -190,36 +187,33 @@ pipeline {
         stage('4 — Tests Intégration') {
             steps {
                 echo '====== STAGE 4 : Tests d\'intégration (API) ======'
-                sh '''
-                    mkdir -p "${TEST_RESULTS_DIR}/integration"
+                dir('backend-pays') {
+                    sh '''
+                        mkdir -p "${TEST_RESULTS_DIR}/integration"
 
-                    python -m pytest tests/integration/ \
-                        -v \
-                        --tb=short \
-                        -p no:cacheprovider \
-                        --junitxml="${TEST_RESULTS_DIR}/integration/results.xml" \
-                        --html="${TEST_RESULTS_DIR}/integration/report.html" \
-                        --self-contained-html \
-                        --cov=. \
-                        --cov-report=xml:"${COVERAGE_DIR}/coverage-integration.xml" \
-                        --cov-report=term-missing \
-                        --cov-append \
-                        --cov-config=.coveragerc
-
-                    echo "✅ Tests d'intégration OK"
-                '''
+                        python -m pytest tests/integration/ \
+                            -v \
+                            --tb=short \
+                            -p no:cacheprovider \
+                            --junitxml="${TEST_RESULTS_DIR}/integration/results.xml" \
+                            --html="${TEST_RESULTS_DIR}/integration/report.html" \
+                            --self-contained-html \
+                            --cov=. \
+                            --cov-report=xml:"${COVERAGE_DIR}/coverage-integration.xml" \
+                            --cov-report=term-missing \
+                            --cov-append \
+                            --cov-config=../.coveragerc
+                    '''
+                }
             }
             post {
                 always {
-                    junit allowEmptyResults: true,
-                          testResults: 'test-results/integration/results.xml'
-                    archiveArtifacts artifacts: 'test-results/integration/report.html',
-                                     allowEmptyArchive: true, fingerprint: true
-                    sh 'rm -f futurekawa_test.db || true'
+                    junit allowEmptyResults: true, testResults: 'backend-pays/test-results/integration/results.xml'
+                    archiveArtifacts artifacts: 'backend-pays/test-results/integration/report.html', allowEmptyArchive: true
+                    sh 'rm -f backend-pays/futurekawa_test.db || true'
                 }
             }
         }
-
         // ════════════════════════════════════════════════════
         // STAGE 5 — TESTS BDD (Gherkin / pytest-bdd)
         // Scénarios métier en langage naturel

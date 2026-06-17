@@ -184,23 +184,23 @@ def verifier_alertes_mesures(temperature, humidite):
         if alertes_email:
             details = "\n".join(alertes_email)
             body = f"""
-Bonjour 👋,
+                        Bonjour 👋,
 
-🔍 Une anomalie a été détectée dans les conditions de stockage.
+                        🔍 Une anomalie a été détectée dans les conditions de stockage.
 
-📊 Détails de l'alerte :
-{details}
+                        📊 Détails de l'alerte :
+                        {details}
 
-Pays     : {config['pays']}
-Date     : {datetime.utcnow()}
+                        Pays     : {config['pays']}
+                        Date     : {datetime.utcnow()}
 
-Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
+                        Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
 
-Merci de votre vigilance ! ✅
+                        Merci de votre vigilance ! ✅
 
-Cordialement,
-L'équipe FutureKawa 🤖
-            """
+                        Cordialement,
+                        L'équipe FutureKawa 🤖
+                                    """
             send_email(
                 config["email_destinataire"],
                 "🚨 Alerte : Anomalie détectée dans les conditions de stockage !",

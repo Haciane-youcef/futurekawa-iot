@@ -1,0 +1,43 @@
+# ============================================================
+#  FutureKawa — Configuration pytest-cov / coverage.py
+#  Fichier : .coveragerc
+# ============================================================
+
+[run]
+source = .
+omit =
+    tests/*
+    tests/**/*
+    */__pycache__/*
+    */site-packages/*
+    setup.py
+    conftest.py
+    venv/*
+    .venv/*
+
+# Activer le suivi des branches (branch coverage)
+branch = True
+
+[report]
+# Seuil minimum de couverture (fail si en dessous)
+fail_under = 60
+show_missing = True
+skip_covered = False
+precision = 2
+
+# Exclure certaines lignes des calculs
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstract
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage-results/coverage.xml
