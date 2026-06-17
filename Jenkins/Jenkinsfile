@@ -376,26 +376,29 @@ pipeline {
         // ════════════════════════════════════════════════════
         // STAGE 8 — BUILD DOCKER
         // ════════════════════════════════════════════════════
+
         stage('7— Build Docker') {
             steps {
                 echo '====== STAGE 7 : Build image Docker ======'
-                sh '''
-                    GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                dir('backend-pays') {                          // ← AJOUT
+                    sh '''
+                        GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-                    docker build \
-                        --no-cache \
-                        --tag "${IMAGE_FULL}:${IMAGE_TAG}" \
-                        --tag "${IMAGE_FULL}:latest" \
-                        --label "org.opencontainers.image.revision=${GIT_SHA}" \
-                        --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                        --label "futurekawa.build=${BUILD_NUMBER}" \
-                        .
+                        docker build \
+                            --no-cache \
+                            --tag "${IMAGE_FULL}:${IMAGE_TAG}" \
+                            --tag "${IMAGE_FULL}:latest" \
+                            --label "org.opencontainers.image.revision=${GIT_SHA}" \
+                            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                            --label "futurekawa.build=${BUILD_NUMBER}" \
+                            .
 
-                    docker images "${IMAGE_FULL}" \
-                        --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+                        docker images "${IMAGE_FULL}" \
+                            --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
 
-                    echo "✅ Image ${IMAGE_FULL}:${IMAGE_TAG} construite"
-                '''
+                        echo "✅ Image ${IMAGE_FULL}:${IMAGE_TAG} construite"
+                    '''
+                }
             }
         }
 

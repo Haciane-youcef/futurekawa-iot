@@ -46,8 +46,45 @@ docker volume create jenkins-data 2>/dev/null || echo "  Volume existe déjà"
 echo -e "${GREEN}✅ Volume jenkins-data OK${NC}"
 echo ""
 
+# ── Construction image Jenkins + docker-cli ───────────────────
+echo -e "${YELLOW}[3] Construction de l'image Jenkins avec docker-cli...${NC}"
+
+# Crée un Dockerfile temporaire
+TMPDIR_BUILD=$(mktemp -d)
+cat > "${TMPDIR_BUILD}/Dockerfile" <<'DOCKERFILE'
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+# Installer docker-cli (sans le daemon)
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl gnupg lsb-release && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+      https://download.docker.com/linux/debian \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+      > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Ajouter jenkins au groupe docker
+RUN groupadd -f docker && usermod -aG docker jenkins
+
+USER jenkins
+DOCKERFILE
+
+docker build -t jenkins-futurekawa:local "${TMPDIR_BUILD}"
+rm -rf "${TMPDIR_BUILD}"
+
+echo -e "${GREEN}✅ Image jenkins-futurekawa:local construite${NC}"
+echo ""
+
 # ── Lancement du conteneur Jenkins ───────────────────────────
-echo -e "${YELLOW}[3] Lancement du conteneur Jenkins...${NC}"
+echo -e "${YELLOW}[4] Lancement du conteneur Jenkins...${NC}"
 
 # Supprime l'ancienne instance si elle existe
 docker rm -f jenkins-futurekawa 2>/dev/null || true
@@ -60,14 +97,14 @@ docker run -d \
     -v jenkins-data:/var/jenkins_home \
     -v /var/run/docker.sock:/var/run/docker.sock \
     --network futurekawa-jenkins \
-    jenkins/jenkins:lts-jdk17
+    jenkins-futurekawa:local
 
 echo ""
 echo -e "${GREEN}✅ Jenkins démarré${NC}"
 echo ""
 
 # ── Attente que Jenkins soit prêt ─────────────────────────────
-echo -e "${YELLOW}[4] Attente du démarrage de Jenkins (60s max)...${NC}"
+echo -e "${YELLOW}[5] Attente du démarrage de Jenkins (120s max)...${NC}"
 MAX=24; COUNT=0
 until curl -sf http://localhost:8081/login > /dev/null 2>&1 || [ $COUNT -eq $MAX ]; do
     echo "  Démarrage en cours... ($((COUNT*5))s)"
@@ -82,8 +119,19 @@ fi
 echo -e "${GREEN}✅ Jenkins est en ligne sur http://localhost:8081${NC}"
 echo ""
 
+# ── Vérification docker-cli dans le conteneur ─────────────────
+echo -e "${YELLOW}[6] Vérification docker-cli dans Jenkins...${NC}"
+if docker exec jenkins-futurekawa docker version > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ docker-cli accessible depuis Jenkins${NC}"
+else
+    echo -e "${RED}⚠️  docker-cli non accessible — le socket est peut-être mal monté${NC}"
+    echo "    Vérifie que Docker Desktop > Settings > General > 'Expose daemon on tcp...' est OFF"
+    echo "    et que WSL integration est activée pour ta distro"
+fi
+echo ""
+
 # ── Récupération du mot de passe initial ─────────────────────
-echo -e "${YELLOW}[5] Récupération du mot de passe administrateur initial...${NC}"
+echo -e "${YELLOW}[7] Récupération du mot de passe administrateur initial...${NC}"
 sleep 5
 INITIAL_PWD=$(docker exec jenkins-futurekawa \
     cat /var/jenkins_home/secrets/initialAdminPassword 2>/dev/null || echo "Pas encore disponible")
