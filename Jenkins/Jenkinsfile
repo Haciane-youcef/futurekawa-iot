@@ -432,59 +432,56 @@ pipeline {
         // docker compose up, pour utiliser la nouvelle image
         // et non l'image locale du build précédent.
         // ════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════
+        // STAGE 9 — DEPLOY LOCAL
+        // ════════════════════════════════════════════════════
         stage('9— Deploy local') {
-            when {
-                anyOf { branch 'main'; branch 'master' }
-            }
             steps {
                 echo '====== STAGE 9 : Déploiement local ======'
-                withCredentials([usernamePassword(
-                    credentialsId: "${CREDENTIAL_ID}",
-                    usernameVariable: 'DH_USER',
-                    passwordVariable: 'DH_PASS'
-                )]) {
-                    sh '''
-                        # ── 1. Pull explicite depuis Docker Hub ──
-                        echo "${DH_PASS}" | docker login -u "${DH_USER}" --password-stdin
-                        echo "Pull image depuis Docker Hub..."
-                        docker pull "${IMAGE_FULL}:${IMAGE_TAG}"
-                        docker pull "${IMAGE_FULL}:latest"
-                        docker logout
+                dir('backend-pays') {
+                    withCredentials([usernamePassword(
+                        credentialsId: "${CREDENTIAL_ID}",
+                        usernameVariable: 'DH_USER',
+                        passwordVariable: 'DH_PASS'
+                    )]) {
+                        sh '''
+                            # ── 1. Pull explicite depuis Docker Hub ──
+                            echo "${DH_PASS}" | docker login -u "${DH_USER}" --password-stdin
+                            echo "Pull image depuis Docker Hub..."
+                            docker pull "${IMAGE_FULL}:${IMAGE_TAG}"
+                            docker pull "${IMAGE_FULL}:latest"
+                            docker logout
 
-                        # ── 2. Mise à jour du tag dans docker-compose ──
-                        # On force la variable d'image pour que compose
-                        # utilise le tag du build actuel
-                        export BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}"
-
-                        # ── 3. Arrêt propre de l'ancienne stack ──
-                        docker compose down --remove-orphans 2>/dev/null || true
-                        sleep 5
-
-                        # ── 4. Démarrage avec la nouvelle image ──
-                        BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" docker compose up -d
-
-                        # ── 5. Attente démarrage ──
-                        echo "Attente démarrage des services..."
-                        sleep 20
-                        docker compose ps
-
-                        # ── 6. Health check API ──
-                        MAX=18; COUNT=0
-                        until curl -sf http://localhost:8000/ >/dev/null 2>&1 || [ $COUNT -eq $MAX ]; do
-                            echo "  Health check $((COUNT+1))/$MAX..."
+                            # ── 2. Arrêt propre de l'ancienne stack ──
+                            docker compose down --remove-orphans 2>/dev/null || true
                             sleep 5
-                            COUNT=$((COUNT+1))
-                        done
 
-                        if curl -sf http://localhost:8000/ >/dev/null 2>&1; then
-                            echo "✅ API répond sur http://localhost:8000"
-                            curl -sf http://localhost:8000/ | python3 -m json.tool || true
-                        else
-                            echo "❌ API ne répond pas — logs :"
-                            docker compose logs --tail=80
-                            exit 1
-                        fi
-                    '''
+                            # ── 3. Démarrage avec la nouvelle image ──
+                            BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" docker compose up -d
+
+                            # ── 4. Attente démarrage ──
+                            echo "Attente démarrage des services..."
+                            sleep 20
+                            docker compose ps
+
+                            # ── 5. Health check API ──
+                            MAX=18; COUNT=0
+                            until curl -sf http://localhost:8000/ >/dev/null 2>&1 || [ $COUNT -eq $MAX ]; do
+                                echo "  Health check $((COUNT+1))/$MAX..."
+                                sleep 5
+                                COUNT=$((COUNT+1))
+                            done
+
+                            if curl -sf http://localhost:8000/ >/dev/null 2>&1; then
+                                echo "✅ API répond sur http://localhost:8000"
+                                curl -sf http://localhost:8000/ | python3 -m json.tool || true
+                            else
+                                echo "❌ API ne répond pas — logs :"
+                                docker compose logs --tail=80
+                                exit 1
+                            fi
+                        '''
+                    }
                 }
             }
         }
