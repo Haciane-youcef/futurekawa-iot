@@ -496,18 +496,18 @@ pipeline {
         success {
             sh '''
                 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-                cat > build-info.txt <<EOF
-FutureKawa — Build Info
-=======================
-Build N°   : ${BUILD_NUMBER}
-Date       : $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-Commit     : ${GIT_SHA}
-Branch     : $(git branch --show-current 2>/dev/null || echo unknown)
-Image      : ${IMAGE_FULL}:${IMAGE_TAG}
-SonarQube  : ${SONAR_HOST}/projects
-API        : http://localhost:8000
-Docs       : http://localhost:8000/docs
-EOF
+                            cat > build-info.txt <<EOF
+                FutureKawa — Build Info
+                =======================
+                Build N°   : ${BUILD_NUMBER}
+                Date       : $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+                Commit     : ${GIT_SHA}
+                Branch     : $(git branch --show-current 2>/dev/null || echo unknown)
+                Image      : ${IMAGE_FULL}:${IMAGE_TAG}
+                SonarQube  : ${SONAR_HOST}/projects
+                API        : http://localhost:8000
+                Docs       : http://localhost:8000/docs
+                EOF
                 cat build-info.txt
             '''
             archiveArtifacts artifacts: 'build-info.txt', fingerprint: true
@@ -529,7 +529,7 @@ EOF
                 allowMissing          : true,
                 alwaysLinkToLastBuild : true,
                 keepAll               : true,
-                reportDir             : 'test-results',
+                reportDir             : 'backend-pays/test-results',
                 reportFiles           : '*/report.html',
                 reportName            : 'Rapports de Tests'
             ])
