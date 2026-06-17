@@ -105,7 +105,7 @@ pipeline {
                 dir('backend-pays') { 
                     sh '''
                         # 2. Utilisation sécurisée de python3 -m pip
-                        python3 -m pip install flake8 --quiet
+                        python3 -m pip install flake8 --quiet --break-system-packages
 
                         mkdir -p "${TEST_RESULTS_DIR}"
 
