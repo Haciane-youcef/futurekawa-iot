@@ -173,7 +173,9 @@ pipeline {
             post {
                 always {
                     junit allowEmptyResults: true, testResults: 'backend-pays/test-results/unit/results.xml'
-                    archiveArtifacts artifacts: 'backend-pays/test-results/unit/report.html', allowEmptyArchive: true
+                    // MODIFICATION : On archive le HTML ET les XML de résultats/couverture
+                    archiveArtifacts artifacts: 'backend-pays/test-results/unit/report.html, backend-pays/test-results/unit/results.xml, backend-pays/coverage-results/coverage-unit.xml', 
+                                     allowEmptyArchive: true
                     sh 'rm -f backend-pays/futurekawa_test.db || true'
                 }
             }
@@ -209,7 +211,9 @@ pipeline {
             post {
                 always {
                     junit allowEmptyResults: true, testResults: 'backend-pays/test-results/integration/results.xml'
-                    archiveArtifacts artifacts: 'backend-pays/test-results/integration/report.html', allowEmptyArchive: true
+                    // MODIFICATION : On archive le HTML ET les XML de résultats/couverture
+                    archiveArtifacts artifacts: 'backend-pays/test-results/integration/report.html, backend-pays/test-results/integration/results.xml, backend-pays/coverage-results/coverage-integration.xml', 
+                                     allowEmptyArchive: true
                     sh 'rm -f backend-pays/futurekawa_test.db || true'
                 }
             }
