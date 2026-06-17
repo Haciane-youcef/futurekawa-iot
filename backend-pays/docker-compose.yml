@@ -31,7 +31,7 @@ services:
 
   # Backend Python FastAPI
   backend:
-    build: .
+    image: ${BACKEND_IMAGE:-josef3215/futurekawa-backend-pays:latest}
     container_name: futurekawa-backend
     ports:
       - "8000:8000"
