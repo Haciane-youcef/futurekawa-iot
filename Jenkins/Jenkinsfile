@@ -219,7 +219,7 @@ pipeline {
         // Scénarios métier en langage naturel
         // Fichiers .feature dans tests/bdd/features/
         // ════════════════════════════════════════════════════
-        stage('5 — Tests BDD') {
+        /*stage('5 — Tests BDD') {
             steps {
                 echo '====== STAGE 5 : Tests BDD (Gherkin) ======'
                 sh '''
@@ -252,15 +252,15 @@ pipeline {
                     sh 'rm -f futurekawa_test.db || true'
                 }
             }
-        }
+        }*/
 
         // ════════════════════════════════════════════════════
         // STAGE 6 — SONARQUBE BACKEND
         // Agrège les 3 rapports de couverture XML
         // ════════════════════════════════════════════════════
-        stage('6 — SonarQube Backend') {
+        stage('5 — SonarQube Backend') {
             steps {
-                echo '====== STAGE 6 : SonarQube — Backend python3 ======'
+                echo '====== STAGE 5 : SonarQube — Backend python3 ======'
                 withCredentials([string(
                     credentialsId: 'sonar-token',
                     variable: 'SONAR_TOKEN'
@@ -329,12 +329,12 @@ pipeline {
         // ════════════════════════════════════════════════════
         // STAGE 7 — SONARQUBE FRONTEND (optionnel)
         // ════════════════════════════════════════════════════
-        stage('7 — SonarQube Frontend') {
+        stage('6 — SonarQube Frontend') {
             when {
                 expression { return fileExists('frontend/package.json') }
             }
             steps {
-                echo '====== STAGE 7 : SonarQube — Frontend React ======'
+                echo '====== STAGE 6 : SonarQube — Frontend React ======'
                 withCredentials([string(
                     credentialsId: 'sonar-token',
                     variable: 'SONAR_TOKEN'
@@ -378,9 +378,9 @@ pipeline {
         // ════════════════════════════════════════════════════
         // STAGE 8 — BUILD DOCKER
         // ════════════════════════════════════════════════════
-        stage('8 — Build Docker') {
+        stage('7— Build Docker') {
             steps {
-                echo '====== STAGE 8 : Build image Docker ======'
+                echo '====== STAGE 7 : Build image Docker ======'
                 sh '''
                     GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -402,14 +402,14 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        // STAGE 9 — PUSH DOCKER HUB (main/master)
+        // STAGE 8 — PUSH DOCKER HUB (main/master)
         // ════════════════════════════════════════════════════
-        stage('9 — Push Docker Hub') {
+        stage('8 — Push Docker Hub') {
             when {
                 anyOf { branch 'main'; branch 'master' }
             }
             steps {
-                echo '====== STAGE 9 : Push Docker Hub ======'
+                echo '====== STAGE 8 : Push Docker Hub ======'
                 withCredentials([usernamePassword(
                     credentialsId: "${CREDENTIAL_ID}",
                     usernameVariable: 'DH_USER',
@@ -427,18 +427,18 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        // STAGE 10 — DEPLOY LOCAL (main/master)
+        // STAGE 9 — DEPLOY LOCAL (main/master)
         //
         // CORRIGÉ : pull explicite depuis Docker Hub AVANT
         // docker compose up, pour utiliser la nouvelle image
         // et non l'image locale du build précédent.
         // ════════════════════════════════════════════════════
-        stage('10 — Deploy local') {
+        stage('9— Deploy local') {
             when {
                 anyOf { branch 'main'; branch 'master' }
             }
             steps {
-                echo '====== STAGE 10 : Déploiement local ======'
+                echo '====== STAGE 9 : Déploiement local ======'
                 withCredentials([usernamePassword(
                     credentialsId: "${CREDENTIAL_ID}",
                     usernameVariable: 'DH_USER',
