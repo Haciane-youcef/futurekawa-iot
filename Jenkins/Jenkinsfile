@@ -266,24 +266,24 @@ pipeline {
                     variable: 'SONAR_TOKEN'
                 )]) {
                     sh '''
-                        # ── Installation sonar-scanner si absent ──
-                        if ! command -v sonar-scanner &>/dev/null; then
-                            echo "Téléchargement sonar-scanner CLI..."
-                            SONAR_VER="5.0.1.3006"
+                        SONAR_VER="5.0.1.3006"
+                        SCANNER_DIR="${WORKSPACE}/.sonar-scanner-${SONAR_VER}"
+                        
+                        # ── Installation locale au Workspace si absent ──
+                        if [ ! -f "${SCANNER_DIR}/bin/sonar-scanner" ]; then
+                            echo "Téléchargement local de sonar-scanner CLI..."
                             SONAR_ZIP="sonar-scanner-cli-${SONAR_VER}-linux.zip"
                             
-                            # Utilisation de curl à la place de wget
                             if command -v curl &>/dev/null; then
                                 curl -sSLo "${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
-                            elif command -v wget &>/dev/null; then
-                                wget -q "${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
                             else
-                                echo "❌ Erreur : Ni curl ni wget ne sont installés dans ce conteneur Jenkins."
-                                exit 1
+                                wget -q "${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
                             fi
 
-                            unzip -q "${SONAR_ZIP}" -d /opt/
-                            ln -sf "/opt/sonar-scanner-${SONAR_VER}-linux/bin/sonar-scanner" /usr/local/bin/sonar-scanner
+                            echo "Extraction locale..."
+                            unzip -q "${SONAR_ZIP}" -d "${WORKSPACE}/"
+                            # Renommer le dossier pour le rendre plus propre et repérable
+                            mv "${WORKSPACE}/sonar-scanner-${SONAR_VER}-linux" "${SCANNER_DIR}"
                             rm -f "${SONAR_ZIP}"
                         fi
 
@@ -310,7 +310,8 @@ pipeline {
                         echo "Couverture : $COVERAGE_PATHS"
                         echo "JUnit      : $JUNIT_PATHS"
 
-                        sonar-scanner \
+                        # ── Exécution via le chemin local ──
+                        "${SCANNER_DIR}/bin/sonar-scanner" \
                             -Dsonar.projectKey="${SONAR_BACKEND_KEY}" \
                             -Dsonar.projectName="FutureKawa Backend" \
                             -Dsonar.projectVersion="${BUILD_NUMBER}" \
