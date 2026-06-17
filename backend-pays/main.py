@@ -1,5 +1,6 @@
 import os
 import json
+from sqlite3 import IntegrityError
 import threading
 import time
 import smtplib
@@ -360,13 +361,21 @@ def creer_lot(lot: LotCreate, db: Session = Depends(get_db)):
         pays=lot.pays,
         exploitation=lot.exploitation,
         entrepot=lot.entrepot,
-        date_stockage=datetime.utcnow(),
+        date_stockage=datetime.utcnow(), 
         statut="conforme"
     )
     db.add(nouveau_lot)
-    db.commit()
-    db.refresh(nouveau_lot)
-    return nouveau_lot
+    
+    try:
+        db.commit()
+        db.refresh(nouveau_lot)
+        return nouveau_lot
+    except IntegrityError:
+        db.rollback()  # On nettoie la transaction SQLite avortée
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Un lot avec cet identifiant existe déjà."
+        )
 
 @app.get("/lots")
 def get_lots(db: Session = Depends(get_db)):
