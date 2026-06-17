@@ -54,7 +54,7 @@ pipeline {
     }
 
     options {
-        cleanWs()
+        //cleanWs()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 50, unit: 'MINUTES')
         timestamps()
@@ -521,6 +521,9 @@ EOF
         always {
             // Nettoyage images dangling
             sh 'docker image prune -f 2>/dev/null || true'
+
+            cleanWs()
+            
             // Publication couverture HTML si présent
             publishHTML(target: [
                 allowMissing          : true,
