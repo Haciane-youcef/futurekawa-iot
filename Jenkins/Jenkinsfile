@@ -101,36 +101,41 @@ pipeline {
         stage('2 — Lint') {
             steps {
                 echo '====== STAGE 2 : Lint flake8 ======'
-                sh '''
-                    pip install flake8 --quiet
+                // 1. On se place dans le dossier contenant ton code Python
+                dir('backend-pays') { 
+                    sh '''
+                        # 2. Utilisation sécurisée de python3 -m pip
+                        python3 -m pip install flake8 --quiet
 
-                    mkdir -p "${TEST_RESULTS_DIR}"
+                        mkdir -p "${TEST_RESULTS_DIR}"
 
-                    echo "── Erreurs critiques (E9, F63, F7, F82) ──"
-                    python -m flake8 . \
-                        --count \
-                        --select=E9,F63,F7,F82 \
-                        --show-source \
-                        --statistics \
-                        --exclude=.git,__pycache__,tests/,htmlcov/,*.egg-info \
-                        --output-file="${TEST_RESULTS_DIR}/flake8-critical.txt" \
-                        || { cat "${TEST_RESULTS_DIR}/flake8-critical.txt"; exit 1; }
+                        echo "── Erreurs critiques (E9, F63, F7, F82) ──"
+                        python3 -m flake8 . \
+                            --count \
+                            --select=E9,F63,F7,F82 \
+                            --show-source \
+                            --statistics \
+                            --exclude=.git,__pycache__,tests/,htmlcov/,*.egg-info \
+                            --output-file="${TEST_RESULTS_DIR}/flake8-critical.txt" \
+                            || { cat "${TEST_RESULTS_DIR}/flake8-critical.txt"; exit 1; }
 
-                    echo "── Avertissements qualité (max-line 120) ──"
-                    python -m flake8 . \
-                        --count \
-                        --max-line-length=120 \
-                        --statistics \
-                        --exclude=.git,__pycache__,tests/,htmlcov/,*.egg-info \
-                        --output-file="${TEST_RESULTS_DIR}/flake8-warnings.txt" \
-                        || true
+                        echo "── Avertissements qualité (max-line 120) ──"
+                        python3 -m flake8 . \
+                            --count \
+                            --max-line-length=120 \
+                            --statistics \
+                            --exclude=.git,__pycache__,tests/,htmlcov/,*.egg-info \
+                            --output-file="${TEST_RESULTS_DIR}/flake8-warnings.txt" \
+                            || true
 
-                    echo "✅ Lint terminé — rapport dans ${TEST_RESULTS_DIR}/flake8-*.txt"
-                '''
+                        echo "✅ Lint terminé — rapport dans ${TEST_RESULTS_DIR}/flake8-*.txt"
+                    '''
+                }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'test-results/flake8-*.txt',
+                    // 3. Ajustement du chemin pour l'archivage puisqu'il est dans backend-pays/
+                    archiveArtifacts artifacts: 'backend-pays/test-results/flake8-*.txt',
                                      allowEmptyArchive: true
                 }
             }
