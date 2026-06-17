@@ -101,14 +101,11 @@ pipeline {
         stage('2 — Lint') {
             steps {
                 echo '====== STAGE 2 : Lint flake8 ======'
+                // 1. On se place dans le dossier contenant ton code Python
                 dir('backend-pays') { 
                     sh '''
-                        echo "── Installation des dépendances système (Python3) ──"
-                        # Mise à jour des dépôts et installation silencieuse de Python3 et pip
-                        sudo apt-get update -qq && sudo apt-get install -y -qq python3 python3-pip python3-venv
-
-                        echo "── Installation de Flake8 ──"
-                        python3 -m pip install flake8 --quiet --break-system-packages || python3 -m pip install flake8 --quiet
+                        # 2. Utilisation sécurisée de python3 -m pip
+                        python3 -m pip install flake8 --quiet
 
                         mkdir -p "${TEST_RESULTS_DIR}"
 
@@ -137,6 +134,7 @@ pipeline {
             }
             post {
                 always {
+                    // 3. Ajustement du chemin pour l'archivage puisqu'il est dans backend-pays/
                     archiveArtifacts artifacts: 'backend-pays/test-results/flake8-*.txt',
                                      allowEmptyArchive: true
                 }
