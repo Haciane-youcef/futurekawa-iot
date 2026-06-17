@@ -265,78 +265,73 @@ pipeline {
         stage('5 — SonarQube Backend') {
             steps {
                 echo '====== STAGE 5 : SonarQube — Backend python3 ======'
-                withCredentials([string(
-                    credentialsId: 'SONAR_TOKEN',
-                    variable: 'SONAR_TOKEN'
-                )]) {
-                    sh '''
-                        SONAR_VER="5.0.1.3006"
-                        SCANNER_DIR="${WORKSPACE}/.sonar-scanner-${SONAR_VER}"
-                        
-                        # ── Installation locale au Workspace si absent ──
-                        if [ ! -f "${SCANNER_DIR}/bin/sonar-scanner" ]; then
-                            echo "Téléchargement local de sonar-scanner CLI..."
-                            SONAR_ZIP="sonar-scanner-cli-${SONAR_VER}-linux.zip"
+                
+                // Récupération instantanée depuis les artéfacts Jenkins du build en cours
+                copyArtifacts projectName: "${JOB_NAME}", 
+                              selector: specific("${BUILD_NUMBER}"), 
+                              filter: 'backend-pays/test-results/**/*.xml, backend-pays/coverage-results/**/*.xml', 
+                              target: '.'
+
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    dir('backend-pays') {
+                        sh '''
+                            SONAR_VER="5.0.1.3006"
+                            SCANNER_DIR="${WORKSPACE}/.sonar-scanner-${SONAR_VER}"
                             
-                            if command -v curl &>/dev/null; then
-                                curl -sSLo "${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
-                            else
-                                wget -q "${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
+                            if [ ! -f "${SCANNER_DIR}/bin/sonar-scanner" ]; then
+                                echo "Téléchargement local de sonar-scanner CLI..."
+                                SONAR_ZIP="sonar-scanner-cli-${SONAR_VER}-linux.zip"
+                                if command -v curl &>/dev/null; then
+                                    curl -sSLo "${WORKSPACE}/${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
+                                else
+                                    wget -q "${WORKSPACE}/${SONAR_ZIP}" "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${SONAR_ZIP}"
+                                fi
+                                unzip -q "${WORKSPACE}/${SONAR_ZIP}" -d "${WORKSPACE}/"
+                                mv "${WORKSPACE}/sonar-scanner-${SONAR_VER}-linux" "${SCANNER_DIR}"
+                                rm -f "${WORKSPACE}/${SONAR_ZIP}"
                             fi
 
-                            echo "Extraction locale..."
-                            unzip -q "${SONAR_ZIP}" -d "${WORKSPACE}/"
-                            # Renommer le dossier pour le rendre plus propre et repérable
-                            mv "${WORKSPACE}/sonar-scanner-${SONAR_VER}-linux" "${SCANNER_DIR}"
-                            rm -f "${SONAR_ZIP}"
-                        fi
+                            # Variables des dossiers (depuis la racine backend-pays)
+                            TEST_RESULTS_DIR="test-results"
+                            COVERAGE_DIR="coverage-results"
 
-                        # ── Rapport de couverture combiné ──
-                        COVERAGE_PATHS=""
-                        for f in \
-                            "${COVERAGE_DIR}/coverage-unit.xml" \
-                            "${COVERAGE_DIR}/coverage-integration.xml" \
-                            "${COVERAGE_DIR}/coverage-bdd.xml"; do
-                            [ -f "$f" ] && COVERAGE_PATHS="${COVERAGE_PATHS}${f},"
-                        done
-                        COVERAGE_PATHS="${COVERAGE_PATHS%,}"
+                            # ── Formatage des chemins pour SonarQube ──
+                            COVERAGE_PATHS=""
+                            for f in "${COVERAGE_DIR}/coverage-unit.xml" "${COVERAGE_DIR}/coverage-integration.xml"; do
+                                [ -f "$f" ] && COVERAGE_PATHS="${COVERAGE_PATHS}${f},"
+                            done
+                            COVERAGE_PATHS="${COVERAGE_PATHS%,}"
 
-                        # ── Rapport de tests combiné ──
-                        JUNIT_PATHS=""
-                        for f in \
-                            "${TEST_RESULTS_DIR}/unit/results.xml" \
-                            "${TEST_RESULTS_DIR}/integration/results.xml" \
-                            "${TEST_RESULTS_DIR}/bdd/results.xml"; do
-                            [ -f "$f" ] && JUNIT_PATHS="${JUNIT_PATHS}${f},"
-                        done
-                        JUNIT_PATHS="${JUNIT_PATHS%,}"
+                            JUNIT_PATHS=""
+                            for f in "${TEST_RESULTS_DIR}/unit/results.xml" "${TEST_RESULTS_DIR}/integration/results.xml"; do
+                                [ -f "$f" ] && JUNIT_PATHS="${JUNIT_PATHS}${f},"
+                            done
+                            JUNIT_PATHS="${JUNIT_PATHS%,}"
 
-                        echo "Couverture : $COVERAGE_PATHS"
-                        echo "JUnit      : $JUNIT_PATHS"
+                            echo "Artéfacts de Couverture trouvés : $COVERAGE_PATHS"
+                            echo "Artéfacts JUnit trouvés       : $JUNIT_PATHS"
 
-                        # ── Exécution via le chemin local ──
-                        "${SCANNER_DIR}/bin/sonar-scanner" \
-                            -Dsonar.projectKey="${SONAR_BACKEND_KEY}" \
-                            -Dsonar.projectName="FutureKawa Backend" \
-                            -Dsonar.projectVersion="${BUILD_NUMBER}" \
-                            -Dsonar.sources=. \
-                            -Dsonar.exclusions="tests/**,**/__pycache__/**,**/*.pyc,.git/**,htmlcov/**,*.egg-info/**" \
-                            -Dsonar.tests=tests \
-                            -Dsonar.test.inclusions="tests/**/*.py" \
-                            -Dsonar.language=py \
-                            -Dsonar.python.version=3.11 \
-                            -Dsonar.python.coverage.reportPaths="${COVERAGE_PATHS}" \
-                            -Dsonar.python.xunit.reportPath="${JUNIT_PATHS}" \
-                            -Dsonar.sourceEncoding=UTF-8 \
-                            -Dsonar.host.url="${SONAR_HOST}" \
-                            -Dsonar.token="${SONAR_TOKEN}" \
-                            -Dsonar.scm.disabled=true \
-                            -Dsonar.qualitygate.wait=true \
-                            -Dsonar.qualitygate.timeout=300
-
-                        echo "✅ Analyse backend envoyée"
-                        echo "Dashboard : ${SONAR_HOST}/dashboard?id=${SONAR_BACKEND_KEY}"
-                    '''
+                            # ── Lancement du Scanner ──
+                            "${SCANNER_DIR}/bin/sonar-scanner" \
+                                -Dsonar.projectKey="futurekawa-backend" \
+                                -Dsonar.projectName="FutureKawa Backend" \
+                                -Dsonar.projectVersion="${BUILD_NUMBER}" \
+                                -Dsonar.sources=. \
+                                -Dsonar.exclusions="tests/**,**/__pycache__/**,**/*.pyc,.git/**,htmlcov/**" \
+                                -Dsonar.tests=tests \
+                                -Dsonar.test.inclusions="tests/**/*.py" \
+                                -Dsonar.language=py \
+                                -Dsonar.python.version=3.11 \
+                                -Dsonar.python.coverage.reportPaths="${COVERAGE_PATHS}" \
+                                -Dsonar.python.xunit.reportPath="${JUNIT_PATHS}" \
+                                -Dsonar.sourceEncoding=UTF-8 \
+                                -Dsonar.host.url="http://localhost:9000" \
+                                -Dsonar.token="${SONAR_TOKEN}" \
+                                -Dsonar.scm.disabled=true \
+                                -Dsonar.qualitygate.wait=true \
+                                -Dsonar.qualitygate.timeout=300
+                        '''
+                    }
                 }
             }
         }
