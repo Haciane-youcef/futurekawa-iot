@@ -262,7 +262,7 @@ pipeline {
             steps {
                 echo '====== STAGE 5 : SonarQube — Backend python3 ======'
                 withCredentials([string(
-                    credentialsId: 'sonar-token',
+                    credentialsId: 'SONAR_TOKEN',
                     variable: 'SONAR_TOKEN'
                 )]) {
                     sh '''
