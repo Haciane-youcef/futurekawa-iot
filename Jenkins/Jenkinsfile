@@ -388,8 +388,8 @@ pipeline {
                             usernameVariable: 'DH_USER', 
                             passwordVariable: 'DH_PASS'
                         ),
-                        string(credentialsId: 'smtp-email',    secretVariable: 'SENDER_EMAIL'),
-                        string(credentialsId: 'smtp-password', secretVariable: 'SENDER_PASSWORD')
+                        string(credentialsId: 'smtp-email',    variable: 'SENDER_EMAIL'),
+                        string(credentialsId: 'smtp-password', variable: 'SENDER_PASSWORD')
                     ]) {
                         sh '''
                             # ── 1. Config mosquitto dans un volume nommé ──
