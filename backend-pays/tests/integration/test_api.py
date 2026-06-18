@@ -75,6 +75,17 @@ def _get_id(data: dict, *keys):
 # → entrepot → capteur → utilisateur
 # ─────────────────────────────────────────────────────────────
 
+CONFIG_BRESIL = {
+    "pays": "Bresil",
+    "temp_ideale": 29.0,
+    "hum_ideale": 55.0,
+    "tolerance_temp": 3.0,
+    "tolerance_hum": 2.0,
+    "email_destinataire": "resp@futurekawa.com",
+    "intervalle_verification": 86400
+}
+
+
 def _creer_chain_complete(client):
     """
     Crée ou récupère la chaîne complète de FK.
@@ -85,7 +96,6 @@ def _creer_chain_complete(client):
     if cfg_resp.status_code == 200:
         cfg = cfg_resp.json()
     elif cfg_resp.status_code == 400:
-        # Config existe déjà → on la récupère
         cfg = client.get("/config").json()
     else:
         raise RuntimeError(f"Impossible de créer la config: {cfg_resp.status_code} {cfg_resp.text}")
@@ -93,7 +103,6 @@ def _creer_chain_complete(client):
     config_id = _get_id(cfg, "id_config", "id")
 
     # ── Exploitation ────────────────────────────────────────
-    # Vérifier si elle existe déjà
     exploitations = client.get("/exploitations").json()
     expl_id = None
     for e in exploitations:
@@ -193,18 +202,6 @@ def _creer_chain_complete(client):
         "utilisateur": usr,
         "utilisateur_id": usr_id,
     }
-
-
-# Helpers
-CONFIG_BRESIL = {
-    "pays": "Bresil",
-    "temp_ideale": 29.0,
-    "hum_ideale": 55.0,
-    "tolerance_temp": 3.0,
-    "tolerance_hum": 2.0,
-    "email_destinataire": "resp@futurekawa.com",
-    "intervalle_verification": 86400
-}
 
 
 # ════════════════════════════════════════════════════════════
@@ -411,7 +408,7 @@ class TestLots:
 
     @pytest.fixture(autouse=True)
     def cleanup_lots(self):
-        """Lots de test supprimés + chaîne complète recréée."""
+        """Lots de test supprimés avant chaque test."""
         db = TestingSession()
         db.query(Lot).filter(Lot.id_lot.like("LOT-INT-%")).delete(synchronize_session=False)
         db.commit()
@@ -545,7 +542,7 @@ class TestMesures:
     """Endpoints de lecture des mesures IoT."""
 
     @pytest.fixture(autouse=True)
-    def ensure_chain(self):
+    def ensure_chain(self, client):
         """S'assure que la chaîne de FK existe pour tous les tests."""
         _creer_chain_complete(client)
         yield
@@ -651,7 +648,6 @@ class TestAlertesLots:
 
     def test_creer_alerte_lot(self, client):
         chain = _creer_chain_complete(client)
-        # D'abord créer un lot pour avoir un id_lot valide
         client.post("/lots", json={
             "id_lot": "LOT-ALERT-TEST",
             "id_entrepot": chain["entrepot_id"],
