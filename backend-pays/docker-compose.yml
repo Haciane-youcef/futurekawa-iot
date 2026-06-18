@@ -21,7 +21,7 @@ services:
     environment:
       POSTGRES_USER:     futurekawa
       POSTGRES_PASSWORD: futurekawa123
-      POSTGRES_DB:       futurekawa
+      POSTGRES_DB:       futurekawa_bresil
     ports:
       - "5432:5432"
     volumes:
@@ -50,7 +50,7 @@ services:
     environment:
 
       PAYS: bresil
-      DATABASE_URL: postgresql://futurekawa:futurekawa123@postgres:5432/futurekawa
+      DATABASE_URL: postgresql://futurekawa:futurekawa123@postgres:5432/futurekawa_bresil
 
       # ── MQTT ─────────────────────────────────────────────────
       MQTT_BROKER: mosquitto
