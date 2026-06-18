@@ -400,7 +400,7 @@ def creer_lot(lot: LotCreate, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()  # On nettoie la transaction SQLite avortée
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=409,  
             detail="Un lot avec cet identifiant existe déjà."
         )
 
@@ -508,6 +508,20 @@ def creer_alerte(alerte_data: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nouvelle_alerte)
     return nouvelle_alerte
+
+@app.patch("/alertes/{alerte_id}")
+def update_alerte(alerte_id: int, update_data: dict, db: Session = Depends(get_db)):
+    """Mettre à jour une alerte (PATCH)"""
+    alerte = db.query(Alerte).filter(Alerte.id == alerte_id).first()
+    if not alerte:
+        raise HTTPException(status_code=404, detail="Alerte non trouvee")
+    
+    if "statut" in update_data:
+        alerte.statut = update_data["statut"]
+    
+    db.commit()
+    db.refresh(alerte)
+    return alerte
 
 @app.get("/alertes/non-lues")
 def get_alertes_non_lues(db: Session = Depends(get_db)):
