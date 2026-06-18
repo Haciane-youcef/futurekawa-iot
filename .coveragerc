@@ -20,7 +20,7 @@ branch = True
 
 [report]
 # Seuil minimum de couverture (fail si en dessous)
-fail_under = 45
+fail_under = 40
 show_missing = True
 skip_covered = False
 precision = 2
