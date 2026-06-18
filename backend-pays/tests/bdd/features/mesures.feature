@@ -1,4 +1,3 @@
-# language: fr
 Feature: Gestion des mesures IoT
   En tant que système de monitoring FutureKawa
   Je veux enregistrer et consulter les mesures de température et humidité

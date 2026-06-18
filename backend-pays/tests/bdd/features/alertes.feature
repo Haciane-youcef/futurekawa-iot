@@ -1,4 +1,3 @@
-# language: fr
 Feature: Gestion des alertes
   En tant que système de monitoring FutureKawa
   Je veux créer et consulter les alertes de dépassement de seuil

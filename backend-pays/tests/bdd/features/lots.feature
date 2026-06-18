@@ -1,4 +1,3 @@
-# language: fr
 Feature: Gestion des lots de café
   En tant que gestionnaire FutureKawa
   Je veux créer et consulter des lots de café
