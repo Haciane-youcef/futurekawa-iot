@@ -245,23 +245,23 @@ def verifier_alertes_lots():
             print(f"Alerte lot perime sauvegardee en BDD : {lot.lot_id}")
 
             body = f"""
-Bonjour 👋,
+                Bonjour 👋,
 
-🔍 Un lot dépasse 365 jours de stockage.
+                🔍 Un lot dépasse 365 jours de stockage.
 
-📊 Détails du lot :
-- Lot ID     : {lot.lot_id}
-- Pays       : {lot.pays}
-- Entrepot   : {lot.entrepot}
-- Stocké le  : {lot.date_stockage}
-- Date alerte: {datetime.utcnow()}
+                📊 Détails du lot :
+                - Lot ID     : {lot.lot_id}
+                - Pays       : {lot.pays}
+                - Entrepot   : {lot.entrepot}
+                - Stocké le  : {lot.date_stockage}
+                - Date alerte: {datetime.utcnow()}
 
-Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
+                Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
 
-Merci de votre vigilance ! ✅
+                Merci de votre vigilance ! ✅
 
-Cordialement,
-L'équipe FutureKawa 🤖
+                Cordialement,
+                L'équipe FutureKawa 🤖
             """
             send_email(
                 config["email_destinataire"],
