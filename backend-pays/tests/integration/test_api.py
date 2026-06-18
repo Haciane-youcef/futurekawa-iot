@@ -242,7 +242,7 @@ class TestLots:
         """POST /lots deux fois avec le même lot_id → 4xx ou 500."""
         client.post("/lots", json=self.LOT_PAYLOAD)
         response = client.post("/lots", json=self.LOT_PAYLOAD)
-        assert response.status_code in [400, 422, 500]
+        assert response.status_code in [400, 409, 422, 500]
 
     def test_modifier_statut_en_alerte(self, client):
         """PUT /lots/{id}/statut?statut=en_alerte → 200 avec nouveau statut."""
