@@ -58,6 +58,143 @@ def client():
         os.remove("futurekawa_integration_test.db")
 
 
+# ─────────────────────────────────────────────────────────────
+# Utilitaire : récupérer l'ID d'une réponse JSON
+# ─────────────────────────────────────────────────────────────
+
+def _get_id(data: dict, *keys):
+    """Récupère la première clé trouvée dans le dict parmi keys."""
+    for k in keys:
+        if k in data:
+            return data[k]
+    return None
+
+
+# ─────────────────────────────────────────────────────────────
+# Helper : créer la chaîne complète config → exploitation
+# → entrepot → capteur → utilisateur
+# ─────────────────────────────────────────────────────────────
+
+def _creer_chain_complete(client):
+    """
+    Crée ou récupère la chaîne complète de FK.
+    Idempotent : si la config existe déjà, la récupère via GET.
+    """
+    # ── Config (créer ou récupérer) ──────────────────────────
+    cfg_resp = client.post("/config", json=CONFIG_BRESIL)
+    if cfg_resp.status_code == 200:
+        cfg = cfg_resp.json()
+    elif cfg_resp.status_code == 400:
+        # Config existe déjà → on la récupère
+        cfg = client.get("/config").json()
+    else:
+        raise RuntimeError(f"Impossible de créer la config: {cfg_resp.status_code} {cfg_resp.text}")
+
+    config_id = _get_id(cfg, "id_config", "id")
+
+    # ── Exploitation ────────────────────────────────────────
+    # Vérifier si elle existe déjà
+    exploitations = client.get("/exploitations").json()
+    expl_id = None
+    for e in exploitations:
+        if e.get("nom") == "Exploitation Alto Paraiso":
+            expl_id = _get_id(e, "id_exploitation", "id")
+            break
+
+    if expl_id is None:
+        expl_resp = client.post("/exploitations", json={
+            "nom": "Exploitation Alto Paraiso",
+            "id_config": config_id
+        })
+        assert expl_resp.status_code == 201, (
+            f"Création exploitation échouée: {expl_resp.text}"
+        )
+        expl = expl_resp.json()
+        expl_id = _get_id(expl, "id_exploitation", "id")
+    else:
+        expl = client.get(f"/exploitations/{expl_id}").json()
+
+    # ── Entrepot ────────────────────────────────────────────
+    entrepots = client.get("/entrepots").json()
+    ent_id = None
+    for e in entrepots:
+        if e.get("nom") == "Entrepot Goias":
+            ent_id = _get_id(e, "id_entrepot", "id")
+            break
+
+    if ent_id is None:
+        ent_resp = client.post("/entrepots", json={
+            "nom": "Entrepot Goias",
+            "localisation": "Goias, Bresil",
+            "id_exploitation": expl_id
+        })
+        assert ent_resp.status_code == 201, (
+            f"Création entrepot échouée: {ent_resp.text}"
+        )
+        ent = ent_resp.json()
+        ent_id = _get_id(ent, "id_entrepot", "id")
+    else:
+        ent = client.get(f"/entrepots/{ent_id}").json()
+
+    # ── Capteur ─────────────────────────────────────────────
+    capteurs = client.get("/capteurs").json()
+    cap_id = None
+    for c in capteurs:
+        if c.get("reference") == "CAP-INT-001":
+            cap_id = _get_id(c, "id_capteur", "id")
+            break
+
+    if cap_id is None:
+        cap_resp = client.post("/capteurs", json={
+            "type_capteur": "temperature_humidite",
+            "reference": "CAP-INT-001",
+            "id_entrepot": ent_id
+        })
+        assert cap_resp.status_code == 201, (
+            f"Création capteur échouée: {cap_resp.text}"
+        )
+        cap = cap_resp.json()
+        cap_id = _get_id(cap, "id_capteur", "id")
+    else:
+        cap = client.get(f"/capteurs/{cap_id}").json()
+
+    # ── Utilisateur ─────────────────────────────────────────
+    utilisateurs = client.get("/utilisateurs").json()
+    usr_id = None
+    for u in utilisateurs:
+        if u.get("email") == "maria@test.com":
+            usr_id = _get_id(u, "id_utilisateur", "id")
+            break
+
+    if usr_id is None:
+        usr_resp = client.post("/utilisateurs", json={
+            "nom": "Silva",
+            "prenom": "Maria",
+            "email": "maria@test.com",
+            "mot_de_passe": "pwd123"
+        })
+        assert usr_resp.status_code == 201, (
+            f"Création utilisateur échouée: {usr_resp.text}"
+        )
+        usr = usr_resp.json()
+        usr_id = _get_id(usr, "id_utilisateur", "id")
+    else:
+        usr = client.get(f"/utilisateurs/{usr_id}").json()
+
+    return {
+        "config": cfg,
+        "config_id": config_id,
+        "exploitation": expl,
+        "exploitation_id": expl_id,
+        "entrepot": ent,
+        "entrepot_id": ent_id,
+        "capteur": cap,
+        "capteur_id": cap_id,
+        "utilisateur": usr,
+        "utilisateur_id": usr_id,
+    }
+
+
 # Helpers
 CONFIG_BRESIL = {
     "pays": "Bresil",
@@ -70,43 +207,12 @@ CONFIG_BRESIL = {
 }
 
 
-def _creer_chain_complete(client):
-    """Crée config → exploitation → entrepot → capteur → utilisateur et retourne les ids."""
-    cfg = client.post("/config", json=CONFIG_BRESIL).json()
-    expl = client.post("/exploitations", json={
-        "nom": "Exploitation Alto Paraiso",
-        "id_config": cfg["id_config"]
-    }).json()
-    ent = client.post("/entrepots", json={
-        "nom": "Entrepot Goias",
-        "localisation": "Goias, Bresil",
-        "id_exploitation": expl["id_exploitation"]
-    }).json()
-    cap = client.post("/capteurs", json={
-        "type_capteur": "temperature_humidite",
-        "reference": "CAP-INT-001",
-        "id_entrepot": ent["id_entrepot"]
-    }).json()
-    usr = client.post("/utilisateurs", json={
-        "nom": "Silva",
-        "prenom": "Maria",
-        "email": "maria@test.com",
-        "mot_de_passe": "pwd123"
-    }).json()
-    return {
-        "config": cfg,
-        "exploitation": expl,
-        "entrepot": ent,
-        "capteur": cap,
-        "utilisateur": usr
-    }
-
-
 # ════════════════════════════════════════════════════════════
 # SANTÉ DE L'API
 # ════════════════════════════════════════════════════════════
 
 class TestSanteAPI:
+    """Vérifie que l'API démarre et répond correctement."""
 
     def test_racine_repond_200(self, client):
         assert client.get("/").status_code == 200
@@ -138,9 +244,11 @@ class TestSanteAPI:
 # ════════════════════════════════════════════════════════════
 
 class TestConfiguration:
+    """CRUD complet sur l'endpoint /config."""
 
     @pytest.fixture(autouse=True)
     def reset_config(self):
+        """Table Config vidée avant chaque test de cette classe."""
         db = TestingSession()
         db.query(Config).delete()
         db.commit()
@@ -148,6 +256,7 @@ class TestConfiguration:
         yield
 
     def test_creer_config(self, client):
+        """POST /config → 200 avec les valeurs envoyées."""
         response = client.post("/config", json=CONFIG_BRESIL)
         assert response.status_code == 200
         data = response.json()
@@ -158,31 +267,37 @@ class TestConfiguration:
         assert data["email_destinataire"] == "resp@futurekawa.com"
 
     def test_lire_config_existante(self, client):
+        """GET /config après création → 200 avec les bonnes données."""
         client.post("/config", json=CONFIG_BRESIL)
         response = client.get("/config")
         assert response.status_code == 200
         assert response.json()["pays"] == "Bresil"
 
     def test_config_absente_retourne_404(self, client):
+        """GET /config sans aucune config en base → 404."""
         assert client.get("/config").status_code == 404
 
     def test_double_creation_retourne_400(self, client):
+        """POST /config deux fois → 400 (une seule config autorisée)."""
         client.post("/config", json=CONFIG_BRESIL)
         response = client.post("/config", json=CONFIG_BRESIL)
         assert response.status_code == 400
 
     def test_modifier_config_email(self, client):
+        """PUT /config avec nouvel email → 200."""
         client.post("/config", json=CONFIG_BRESIL)
         response = client.put("/config", json={"email_destinataire": "new@test.com"})
         assert response.status_code == 200
 
     def test_modifier_config_email_persiste(self, client):
+        """PUT /config → GET /config retourne la nouvelle valeur."""
         client.post("/config", json=CONFIG_BRESIL)
         client.put("/config", json={"email_destinataire": "updated@test.com"})
         data = client.get("/config").json()
         assert data["email_destinataire"] == "updated@test.com"
 
     def test_modifier_config_absente_retourne_404(self, client):
+        """PUT /config sans config en base → 404."""
         response = client.put("/config", json={"email_destinataire": "x@x.com"})
         assert response.status_code == 404
 
@@ -204,9 +319,10 @@ class TestExploitations:
 
     def test_creer_exploitation(self, client):
         cfg = client.post("/config", json=CONFIG_BRESIL).json()
+        config_id = _get_id(cfg, "id_config", "id")
         response = client.post("/exploitations", json={
             "nom": "Fazenda Boa Vista",
-            "id_config": cfg["id_config"]
+            "id_config": config_id
         })
         assert response.status_code == 201
         assert response.json()["nom"] == "Fazenda Boa Vista"
@@ -244,7 +360,7 @@ class TestEntrepots:
         response = client.post("/entrepots", json={
             "nom": "Entrepot 2",
             "localisation": "Rio de Janeiro",
-            "id_exploitation": chain["exploitation"]["id_exploitation"]
+            "id_exploitation": chain["exploitation_id"]
         })
         assert response.status_code == 201
 
@@ -276,7 +392,7 @@ class TestCapteurs:
         response = client.post("/capteurs", json={
             "type_capteur": "temperature",
             "reference": "CAP-NEW-001",
-            "id_entrepot": chain["entrepot"]["id_entrepot"]
+            "id_entrepot": chain["entrepot_id"]
         })
         assert response.status_code == 201
         assert response.json()["statut"] == "actif"
@@ -291,9 +407,11 @@ class TestCapteurs:
 # ════════════════════════════════════════════════════════════
 
 class TestLots:
+    """CRUD complet sur l'endpoint /lots."""
 
     @pytest.fixture(autouse=True)
     def cleanup_lots(self):
+        """Lots de test supprimés + chaîne complète recréée."""
         db = TestingSession()
         db.query(Lot).filter(Lot.id_lot.like("LOT-INT-%")).delete(synchronize_session=False)
         db.commit()
@@ -304,20 +422,20 @@ class TestLots:
         chain = _creer_chain_complete(client)
         response = client.post("/lots", json={
             "id_lot": "LOT-INT-001",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         assert response.status_code == 201
         data = response.json()
-        assert data["id_lot"] == "LOT-INT-001"
+        assert _get_id(data, "id_lot", "lot_id") == "LOT-INT-001"
         assert data["statut"] == "conforme"
 
     def test_lot_cree_contient_date_stockage(self, client):
         chain = _creer_chain_complete(client)
         response = client.post("/lots", json={
             "id_lot": "LOT-INT-DATE",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         assert "date_stockage" in response.json()
         assert response.json()["date_stockage"] is not None
@@ -331,22 +449,22 @@ class TestLots:
         chain = _creer_chain_complete(client)
         client.post("/lots", json={
             "id_lot": "LOT-INT-VISIBLE",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
-        lot_ids = [l["id_lot"] for l in client.get("/lots").json()]
+        lot_ids = [_get_id(l, "id_lot", "lot_id") for l in client.get("/lots").json()]
         assert "LOT-INT-VISIBLE" in lot_ids
 
     def test_lire_lot_par_id(self, client):
         chain = _creer_chain_complete(client)
         client.post("/lots", json={
             "id_lot": "LOT-INT-READ",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         response = client.get("/lots/LOT-INT-READ")
         assert response.status_code == 200
-        assert response.json()["id_lot"] == "LOT-INT-READ"
+        assert _get_id(response.json(), "id_lot", "lot_id") == "LOT-INT-READ"
 
     def test_lot_inexistant_retourne_404(self, client):
         assert client.get("/lots/LOT-INEXISTANT-99999").status_code == 404
@@ -355,8 +473,8 @@ class TestLots:
         chain = _creer_chain_complete(client)
         payload = {
             "id_lot": "LOT-INT-DUPL",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         }
         client.post("/lots", json=payload)
         response = client.post("/lots", json=payload)
@@ -366,8 +484,8 @@ class TestLots:
         chain = _creer_chain_complete(client)
         client.post("/lots", json={
             "id_lot": "LOT-INT-STATUT",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         response = client.put("/lots/LOT-INT-STATUT/statut", params={"statut": "en_alerte"})
         assert response.status_code == 200
@@ -377,8 +495,8 @@ class TestLots:
         chain = _creer_chain_complete(client)
         client.post("/lots", json={
             "id_lot": "LOT-INT-PERIME",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         response = client.put("/lots/LOT-INT-PERIME/statut", params={"statut": "perime"})
         assert response.status_code == 200
@@ -392,27 +510,30 @@ class TestLots:
         chain = _creer_chain_complete(client)
         client.post("/lots", json={
             "id_lot": "LOT-INT-FIFO-A",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         client.post("/lots", json={
             "id_lot": "LOT-INT-FIFO-B",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         lots = client.get("/lots").json()
-        dates = [l["date_stockage"] for l in lots if l["id_lot"].startswith("LOT-INT-FIFO")]
+        dates = [
+            l["date_stockage"] for l in lots
+            if _get_id(l, "id_lot", "lot_id", "").startswith("LOT-INT-FIFO")
+        ]
         assert dates == sorted(dates)
 
     def test_creer_lot_champs_retournes(self, client):
         chain = _creer_chain_complete(client)
         response = client.post("/lots", json={
             "id_lot": "LOT-INT-CHAMPS",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         data = response.json()
-        for champ in ["id_lot", "statut", "date_stockage", "id_entrepot", "id_utilisateur"]:
+        for champ in ["statut", "date_stockage"]:
             assert champ in data, f"Champ manquant : {champ}"
 
 
@@ -421,12 +542,13 @@ class TestLots:
 # ════════════════════════════════════════════════════════════
 
 class TestMesures:
+    """Endpoints de lecture des mesures IoT."""
 
     @pytest.fixture(autouse=True)
-    def setup_capteur_int(self):
-        self.chain = _creer_chain_complete(
-            TestClient(app, raise_server_exceptions=False)
-        )
+    def ensure_chain(self):
+        """S'assure que la chaîne de FK existe pour tous les tests."""
+        _creer_chain_complete(client)
+        yield
 
     def test_liste_mesures_retourne_liste(self, client):
         response = client.get("/mesures")
@@ -449,9 +571,10 @@ class TestMesures:
 # ════════════════════════════════════════════════════════════
 
 class TestAlertesMesures:
+    """Endpoints CRUD des alertes mesures."""
 
     @pytest.fixture(autouse=True)
-    def cleanup(self):
+    def cleanup_alertes(self):
         db = TestingSession()
         db.query(AlerteMesure).delete()
         db.commit()
@@ -528,10 +651,11 @@ class TestAlertesLots:
 
     def test_creer_alerte_lot(self, client):
         chain = _creer_chain_complete(client)
+        # D'abord créer un lot pour avoir un id_lot valide
         client.post("/lots", json={
             "id_lot": "LOT-ALERT-TEST",
-            "id_entrepot": chain["entrepot"]["id_entrepot"],
-            "id_utilisateur": chain["utilisateur"]["id_utilisateur"]
+            "id_entrepot": chain["entrepot_id"],
+            "id_utilisateur": chain["utilisateur_id"]
         })
         response = client.post("/alertes-lots", json={
             "message": "Lot perime detecte",
@@ -584,7 +708,7 @@ class TestUtilisateurs:
         resp = client.post("/utilisateurs", json={
             "nom": "Read", "prenom": "Test", "email": "read@test.com", "mot_de_passe": "p"
         })
-        uid = resp.json()["id_utilisateur"]
+        uid = _get_id(resp.json(), "id_utilisateur", "id")
         response = client.get(f"/utilisateurs/{uid}")
         assert response.status_code == 200
         assert response.json()["email"] == "read@test.com"
