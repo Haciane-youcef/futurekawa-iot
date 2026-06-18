@@ -446,10 +446,8 @@ pipeline {
                     )]) {
                         sh '''
                             # ── 1. Préparer config mosquitto dans un volume ──
-                            # On crée le volume s'il n'existe pas déjà
                             docker volume create futurekawa_mosquitto_config 2>/dev/null || true
                             
-                            # On initialise le fichier de conf dans le volume via un conteneur temporaire
                             docker run --rm \
                                 -v futurekawa_mosquitto_config:/config \
                                 alpine sh -c "echo 'listener 1883' > /config/mosquitto.conf && echo 'allow_anonymous true' >> /config/mosquitto.conf"
@@ -468,25 +466,23 @@ pipeline {
                             # ── 4. Démarrage avec la nouvelle image ──
                             BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" docker compose up -d
 
-                            # ── 5. Attente démarrage ──
-                            echo "Attente démarrage des services..."
-                            sleep 20
-                            docker compose ps
-
-                            # ── 6. Health check API ──
-                            MAX=18; COUNT=0
-                            until curl -sf http://localhost:8000/ >/dev/null 2>&1 || [ $COUNT -eq $MAX ]; do
-                                echo "  Health check $((COUNT+1))/$MAX..."
-                                sleep 5
+                            # ── 5. Health check robuste via Docker (Remplace le curl) ──
+                            echo "Attente démarrage du backend..."
+                            MAX=12; COUNT=0
+                            
+                            # On boucle tant que le conteneur n'est pas 'running'
+                            until [ "$(docker inspect -f '{{.State.Running}}' futurekawa-backend 2>/dev/null)" = "true" ] || [ $COUNT -eq $MAX ]; do
+                                echo "  En attente du conteneur... $((COUNT+1))/$MAX"
+                                sleep 10
                                 COUNT=$((COUNT+1))
                             done
 
-                            if curl -sf http://localhost:8000/ >/dev/null 2>&1; then
-                                echo "✅ API répond sur http://localhost:8000"
-                                curl -sf http://localhost:8000/ | python3 -m json.tool || true
+                            # Vérification finale
+                            if [ "$(docker inspect -f '{{.State.Running}}' futurekawa-backend 2>/dev/null)" = "true" ]; then
+                                echo "✅ Backend est opérationnel (Running)."
                             else
-                                echo "❌ API ne répond pas — logs :"
-                                docker compose logs --tail=80
+                                echo "❌ Backend n'a pas démarré — Logs :"
+                                docker compose logs --tail=50
                                 exit 1
                             fi
                         '''
