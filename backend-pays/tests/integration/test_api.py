@@ -204,7 +204,7 @@ class TestLots:
     def test_creer_lot_valide(self, client):
         """POST /lots → 200 avec lot_id et statut 'conforme'."""
         response = client.post("/lots", json=self.LOT_PAYLOAD)
-        assert response.status_code == 200
+        assert response.status_code == 201
         data = response.json()
         assert data["lot_id"] == "LOT-INT-001"
         assert data["statut"] == "conforme"
