@@ -384,7 +384,7 @@ pipeline {
                     // On récupère tous les credentials nécessaires
                     withCredentials([
                         usernamePassword(
-                            credentialsId: "${CREDENTIAL_ID}", 
+                            credentialsId: 'dockerhub-creds', 
                             usernameVariable: 'DH_USER', 
                             passwordVariable: 'DH_PASS'
                         ),
