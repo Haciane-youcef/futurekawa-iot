@@ -349,12 +349,39 @@ def accueil():
 def get_mesures(db: Session = Depends(get_db)):
     return db.query(Mesure).order_by(Mesure.date_mesure.desc()).all()
 
+@app.post("/mesures", status_code=status.HTTP_201_CREATED)
+def creer_mesure(mesure_data: dict, db: Session = Depends(get_db)):
+    """Créer une mesure IoT"""
+    # Valider que 'temperature' est présent
+    if "temperature" not in mesure_data or mesure_data["temperature"] is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Field 'temperature' is required"
+        )
+    
+    nouvelle_mesure = Mesure(
+        temperature=mesure_data["temperature"],
+        humidite=mesure_data.get("humidite"),  # Optionnel
+        date_mesure=datetime.utcnow()
+    )
+    db.add(nouvelle_mesure)
+    db.commit()
+    db.refresh(nouvelle_mesure)
+    
+    # Vérifier les alertes
+    verifier_alertes_mesures(
+        nouvelle_mesure.temperature,
+        nouvelle_mesure.humidite
+    )
+    
+    return nouvelle_mesure
+
 @app.get("/mesures/dernieres/{n}")
 def get_dernieres_mesures(n: int, db: Session = Depends(get_db)):
     return db.query(Mesure).order_by(Mesure.date_mesure.desc()).limit(n).all()
 
 # ── Lots ─────────────────────────────────────────────
-@app.post("/lots")
+@app.post("/lots", status_code=status.HTTP_201_CREATED)
 def creer_lot(lot: LotCreate, db: Session = Depends(get_db)):
     nouveau_lot = Lot(
         lot_id=lot.lot_id,
@@ -462,6 +489,25 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
 @app.get("/alertes")
 def get_alertes(db: Session = Depends(get_db)):
     return db.query(Alerte).order_by(Alerte.date_alerte.desc()).all()
+
+
+@app.post("/alertes", status_code=status.HTTP_201_CREATED)
+def creer_alerte(alerte_data: dict, db: Session = Depends(get_db)):
+    """Créer une alerte manuelle"""
+    nouvelle_alerte = Alerte(
+        type_alerte=alerte_data.get("type_alerte"),
+        message=alerte_data.get("message"),
+        valeur=alerte_data.get("valeur"),
+        seuil_min=alerte_data.get("seuil_min"),
+        seuil_max=alerte_data.get("seuil_max"),
+        lot_id=alerte_data.get("lot_id"),
+        date_alerte=datetime.utcnow(),
+        statut="non_lue"  # ← Par défaut "non_lue"
+    )
+    db.add(nouvelle_alerte)
+    db.commit()
+    db.refresh(nouvelle_alerte)
+    return nouvelle_alerte
 
 @app.get("/alertes/non-lues")
 def get_alertes_non_lues(db: Session = Depends(get_db)):
