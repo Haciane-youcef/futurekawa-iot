@@ -1,43 +1,64 @@
 # ============================================================
-#  FutureKawa — Configuration pytest-cov / coverage.py
-#  Fichier : .coveragerc
+#  FutureKawa — SonarQube : Backend Python
+#  Fichier de configuration de l'analyse
+#
+#  Placé à la racine du projet backend.
+#  Utilisé par le Jenkinsfile (sonar-scanner).
 # ============================================================
 
-[run]
-source = .
-omit =
-    tests/*
-    tests/**/*
-    */__pycache__/*
-    */site-packages/*
-    setup.py
-    conftest.py
-    venv/*
-    .venv/*
+# ── Identifiant unique du projet dans SonarQube ─────────────
+sonar.projectKey=futurekawa-backend
+sonar.projectName=FutureKawa — Backend Brésil
+sonar.projectVersion=1.0
 
-# Activer le suivi des branches (branch coverage)
-branch = True
+# ── Sources à analyser ───────────────────────────────────────
+sonar.sources=.
 
-[report]
-# Seuil minimum de couverture (fail si en dessous)
-fail_under = 45
-show_missing = True
-skip_covered = False
-precision = 2
+# Dossiers à exclure de l'analyse
+sonar.exclusions=\
+    tests/**,\
+    **/__pycache__/**,\
+    **/*.pyc,\
+    .git/**,\
+    venv/**,\
+    .venv/**,\
+    .coverage,\
+    htmlcov/**
 
-# Exclure certaines lignes des calculs
-exclude_lines =
-    pragma: no cover
-    def __repr__
-    def __str__
-    raise AssertionError
-    raise NotImplementedError
-    if __name__ == .__main__.:
-    if TYPE_CHECKING:
-    @abstract
+# Dossiers de tests (analysés séparément)
+sonar.tests=tests
 
-[html]
-directory = htmlcov
+# ── Langage principal ────────────────────────────────────────
+sonar.language=py
 
-[xml]
-output = coverage-results/coverage.xml
+# ── Encodage ─────────────────────────────────────────────────
+sonar.sourceEncoding=UTF-8
+
+# ── Rapports de couverture (générés par pytest-cov) ──────────
+# On cible les rapports cumulés des tests unitaires, intégration et BDD
+sonar.python.coverage.reportPaths=\
+    coverage-results/coverage-unit.xml,\
+    coverage-results/coverage-integration.xml,\
+    coverage-results/coverage-bdd.xml
+
+# ── Rapports de tests JUnit (générés par pytest) ──────────────
+# On cible les trois fichiers XML générés par les stages de tests
+sonar.python.xunit.reportPath=\
+    test-results/unit/results.xml,\
+    test-results/integration/results.xml,\
+    test-results/bdd/results.xml
+
+# ── Version Python ───────────────────────────────────────────
+# Alignée sur la version exécutée par ton Jenkins (Python 3.13)
+sonar.python.version=3.13
+
+# ── Quality Gate ──────────────────────────────────────────────
+#    mais ne pas échouer le build si elle passe (même juste)
+sonar.qualitygate.wait=true
+
+# Timeout pour attendre la Quality Gate (secondes)
+sonar.qualitygate.timeout=300
+
+# ── Rapports supplémentaires ──────────────────────────────────
+# Générer des rapports HTML pour analyse manuelle
+sonar.report.export.path=sonar-report.html
