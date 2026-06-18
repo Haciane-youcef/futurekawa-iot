@@ -1,45 +1,43 @@
 # ============================================================
-#  FutureKawa — SonarQube : Backend Python
-#  Fichier de configuration de l'analyse
-#
-#  Placé à la racine du projet backend.
-#  Utilisé par le Jenkinsfile (sonar-scanner).
+#  FutureKawa — Configuration pytest-cov / coverage.py
+#  Fichier : .coveragerc
 # ============================================================
 
-sonar.projectKey=futurekawa-backend
-sonar.projectName=FutureKawa — Backend Brésil
-sonar.projectVersion=1.0
+[run]
+source = .
+omit =
+    tests/*
+    tests/**/*
+    */__pycache__/*
+    */site-packages/*
+    setup.py
+    conftest.py
+    venv/*
+    .venv/*
 
-sonar.sources=.
+# Activer le suivi des branches (branch coverage)
+branch = True
 
-sonar.exclusions=\
-    tests/**,\
-    **/__pycache__/**,\
-    **/*.pyc,\
-    .git/**,\
-    venv/**,\
-    .venv/**,\
-    .coverage,\
-    htmlcov/**
+[report]
+# Seuil minimum de couverture (fail si en dessous)
+fail_under = 45
+show_missing = True
+skip_covered = False
+precision = 2
 
-sonar.tests=tests
+# Exclure certaines lignes des calculs
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstract
 
-sonar.language=py
+[html]
+directory = htmlcov
 
-sonar.sourceEncoding=UTF-8
-
-sonar.python.coverage.reportPaths=\
-    coverage-results/coverage-unit.xml,\
-    coverage-results/coverage-integration.xml,\
-    coverage-results/coverage-bdd.xml
-
-sonar.python.xunit.reportPath=\
-    test-results/unit/results.xml,\
-    test-results/integration/results.xml,\
-    test-results/bdd/results.xml
-
-sonar.python.version=3.13
-
-sonar.qualitygate.wait=true
-
-sonar.qualitygate.timeout=300
+[xml]
+output = coverage-results/coverage.xml
