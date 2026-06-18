@@ -21,12 +21,13 @@ def api_started(client):
 @given(
     parsers.parse('le lot "{lot_id}" existe déjà en base')
 )
-def lot_existant(client, lot_id):
+def lot_existant(client, lot_id, setup_entrepot, setup_utilisateur):
+    entrepot_id = setup_entrepot["id_entrepot"]
+    utilisateur_id = setup_utilisateur["id_utilisateur"]
     resp = client.post("/lots", json={
-        "lot_id": lot_id,
-        "pays": "Brésil",
-        "exploitation": "Fazenda Teste",
-        "entrepot": "Entrepôt A"
+        "id_lot": lot_id,
+        "id_entrepot": entrepot_id,
+        "id_utilisateur": utilisateur_id
     })
     assert resp.status_code == 201, (
         f"Précondition échouée — impossible de créer {lot_id}: {resp.text}"
@@ -44,12 +45,14 @@ def lot_existant(client, lot_id):
     ),
     target_fixture="response"
 )
-def creer_lot(client, lot_id, pays, exploitation, entrepot):
+def creer_lot(client, lot_id, pays, exploitation, entrepot,
+              setup_entrepot, setup_utilisateur):
+    entrepot_id = setup_entrepot["id_entrepot"]
+    utilisateur_id = setup_utilisateur["id_utilisateur"]
     return client.post("/lots", json={
-        "lot_id": lot_id,
-        "pays": pays,
-        "exploitation": exploitation,
-        "entrepot": entrepot
+        "id_lot": lot_id,
+        "id_entrepot": entrepot_id,
+        "id_utilisateur": utilisateur_id
     })
 
 
@@ -65,16 +68,14 @@ def lister_lots(client):
 @then(parsers.parse("la réponse a le statut {status:d}"))
 def verifier_statut(response, status):
     assert response.status_code == status, (
-        f"Attendu {status}, reçu {response.status_code} — "
-        f"body: {response.text}"
+        f"Attendu {status}, reçu {response.status_code} — body: {response.text}"
     )
 
 
 @then(parsers.parse('le lot "{lot_id}" est bien enregistré'))
 def lot_enregistre(response, lot_id):
     data = response.json()
-    assert data.get("lot_id") == lot_id
-    assert "id" in data
+    assert data.get("id_lot") == lot_id
 
 
 @then("la liste contient au moins un lot")

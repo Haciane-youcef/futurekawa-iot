@@ -6,11 +6,9 @@ from pytest_bdd import given, when, then, parsers, scenarios
 
 from models import Mesure
 
-# Lie ce fichier de steps à la feature correspondante
 scenarios("../features/mesures.feature")
 
 
-# ── Contexte partagé entre steps ────────────────────────────
 @pytest.fixture
 def context():
     return {}
@@ -22,13 +20,17 @@ def context():
 
 @given("l'API FutureKawa est démarrée")
 def api_started(client):
-    """Le client TestClient est injecté via la fixture conftest."""
     pass
 
 
 @given("au moins une mesure existe en base")
-def une_mesure_en_base(client):
-    resp = client.post("/mesures", json={"temperature": 22.0, "humidite": 55.0})
+def une_mesure_en_base(client, setup_capteur):
+    capteur_id = setup_capteur["id_capteur"]
+    resp = client.post("/mesures", json={
+        "temperature": 22.0,
+        "humidite": 55.0,
+        "id_capteur": capteur_id
+    })
     assert resp.status_code == 201
 
 
@@ -42,13 +44,19 @@ def une_mesure_en_base(client):
     ),
     target_fixture="response"
 )
-def soumettre_mesure(client, temp, hum):
-    return client.post("/mesures", json={"temperature": temp, "humidite": hum})
+def soumettre_mesure(client, temp, hum, setup_capteur):
+    capteur_id = setup_capteur["id_capteur"]
+    return client.post("/mesures", json={
+        "temperature": temp,
+        "humidite": hum,
+        "id_capteur": capteur_id
+    })
 
 
 @when("je soumets une mesure sans champ température", target_fixture="response")
-def soumettre_mesure_sans_temp(client):
-    return client.post("/mesures", json={"humidite": 60.0})
+def soumettre_mesure_sans_temp(client, setup_capteur):
+    capteur_id = setup_capteur["id_capteur"]
+    return client.post("/mesures", json={"humidite": 60.0, "id_capteur": capteur_id})
 
 
 @when("je consulte la liste des mesures", target_fixture="response")
@@ -63,16 +71,15 @@ def lister_mesures(client):
 @then(parsers.parse("la réponse a le statut {status:d}"))
 def verifier_statut(response, status):
     assert response.status_code == status, (
-        f"Attendu {status}, reçu {response.status_code} — "
-        f"body: {response.text}"
+        f"Attendu {status}, reçu {response.status_code} — body: {response.text}"
     )
 
 
 @then("la mesure est bien enregistrée en base")
 def mesure_enregistree(response):
     data = response.json()
-    assert "id" in data
-    assert data["id"] > 0
+    assert "id_mesure" in data
+    assert data["id_mesure"] > 0
 
 
 @then("la liste contient au moins une mesure")

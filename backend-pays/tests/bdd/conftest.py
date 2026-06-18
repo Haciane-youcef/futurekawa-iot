@@ -46,12 +46,10 @@ def client():
     Client HTTP FastAPI avec override de la dépendance DB.
     Réinitialise les tables à chaque test pour l'isolation.
     """
-    # Import ici pour éviter les effets de bord à l'import
     from main import app
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Réinitialisation des données entre chaque scénario
     Base.metadata.drop_all(bind=engine_test)
     Base.metadata.create_all(bind=engine_test)
 
@@ -71,3 +69,66 @@ def db_session():
         yield db
     finally:
         db.close()
+
+
+# ── Helpers pour créer les données prérequis ─────────────────
+
+@pytest.fixture
+def setup_config(client):
+    """Crée une config par défaut et retourne sa réponse JSON."""
+    resp = client.post("/config", json={
+        "pays": "Bresil",
+        "temp_ideale": 29.0,
+        "hum_ideale": 55.0,
+        "tolerance_temp": 3.0,
+        "tolerance_hum": 2.0,
+        "email_destinataire": "test@futurekawa.com",
+        "intervalle_verification": 86400
+    })
+    return resp.json()
+
+
+@pytest.fixture
+def setup_exploitation(client, setup_config):
+    """Crée une exploitation liée à la config et retourne sa réponse JSON."""
+    resp = client.post("/exploitations", json={
+        "nom": "Exploitation Test",
+        "id_config": setup_config["id_config"]
+    })
+    return resp.json()
+
+
+@pytest.fixture
+def setup_entrepot(client, setup_exploitation):
+    """Crée un entrepot lié à l'exploitation et retourne sa réponse JSON."""
+    resp = client.post("/entrepots", json={
+        "nom": "Entrepot Test",
+        "localisation": "Sao Paulo",
+        "id_exploitation": setup_exploitation["id_exploitation"]
+    })
+    return resp.json()
+
+
+@pytest.fixture
+def setup_capteur(client, setup_entrepot):
+    """Crée un capteur lié à l'entrepôt et retourne sa réponse JSON."""
+    resp = client.post("/capteurs", json={
+        "type_capteur": "temperature_humidite",
+        "reference": "CAP-001",
+        "statut": "actif",
+        "id_entrepot": setup_entrepot["id_entrepot"]
+    })
+    return resp.json()
+
+
+@pytest.fixture
+def setup_utilisateur(client):
+    """Crée un utilisateur et retourne sa réponse JSON."""
+    resp = client.post("/utilisateurs", json={
+        "nom": "Dupont",
+        "prenom": "Jean",
+        "email": "jean.dupont@test.com",
+        "mot_de_passe": "secret123",
+        "actif": True
+    })
+    return resp.json()
