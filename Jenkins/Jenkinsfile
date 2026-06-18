@@ -445,26 +445,35 @@ pipeline {
                         passwordVariable: 'DH_PASS'
                     )]) {
                         sh '''
-                            # ── 1. Pull explicite depuis Docker Hub ──
+                            # ── 1. Préparer config mosquitto dans un volume ──
+                            # On crée le volume s'il n'existe pas déjà
+                            docker volume create futurekawa_mosquitto_config 2>/dev/null || true
+                            
+                            # On initialise le fichier de conf dans le volume via un conteneur temporaire
+                            docker run --rm \
+                                -v futurekawa_mosquitto_config:/config \
+                                alpine sh -c "echo 'listener 1883' > /config/mosquitto.conf && echo 'allow_anonymous true' >> /config/mosquitto.conf"
+
+                            # ── 2. Pull explicite depuis Docker Hub ──
                             echo "${DH_PASS}" | docker login -u "${DH_USER}" --password-stdin
                             echo "Pull image depuis Docker Hub..."
                             docker pull "${IMAGE_FULL}:${IMAGE_TAG}"
                             docker pull "${IMAGE_FULL}:latest"
                             docker logout
 
-                            # ── 2. Arrêt propre de l'ancienne stack ──
+                            # ── 3. Arrêt propre de l'ancienne stack ──
                             docker compose down --remove-orphans 2>/dev/null || true
                             sleep 5
 
-                            # ── 3. Démarrage avec la nouvelle image ──
+                            # ── 4. Démarrage avec la nouvelle image ──
                             BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" docker compose up -d
 
-                            # ── 4. Attente démarrage ──
+                            # ── 5. Attente démarrage ──
                             echo "Attente démarrage des services..."
                             sleep 20
                             docker compose ps
 
-                            # ── 5. Health check API ──
+                            # ── 6. Health check API ──
                             MAX=18; COUNT=0
                             until curl -sf http://localhost:8000/ >/dev/null 2>&1 || [ $COUNT -eq $MAX ]; do
                                 echo "  Health check $((COUNT+1))/$MAX..."

@@ -27,7 +27,8 @@ services:
     ports:
       - "0.0.0.0:1883:1883" 
     volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf 
+      # Utilisation du volume créé par Jenkins
+      - futurekawa_mosquitto_config:/mosquitto/config/
 
   # Backend Python FastAPI
   backend:
@@ -48,3 +49,5 @@ services:
 
 volumes:
   postgres_data:
+  futurekawa_mosquitto_config:
+    external: true
