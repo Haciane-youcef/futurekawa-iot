@@ -19,7 +19,11 @@ from models import Base, Mesure, Lot, Config, Alerte
 # =====================
 # INITIALISATION
 # =====================
-app = FastAPI(title="FutureKawa - Backend Brésil")
+
+# Le pays est injecté par variable d'environnement — aucune valeur pays dans le code
+PAYS = os.getenv("PAYS", "inconnu")
+
+app = FastAPI(title=f"FutureKawa - Backend {PAYS.capitalize()}")
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,17 +32,19 @@ MQTT_PORT   = int(os.getenv("MQTT_PORT", 1883))
 MQTT_TOPIC  = "capteur/mesures"
 
 # =====================
-# CONFIG EMAIL
+# CONFIG EMAIL — 100% depuis variables d'environnement
+# Ne jamais mettre de credentials dans le code source
 # =====================
-SMTP_SERVER     = "smtp.gmail.com"
-SMTP_PORT       = 587
-SENDER_EMAIL    = "email@gmail.com"
-SENDER_PASSWORD = "le passwor de mail"
+SMTP_SERVER     = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT       = int(os.getenv("SMTP_PORT", 587))
+SENDER_EMAIL    = os.getenv("SENDER_EMAIL", "")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
 
 # =====================
 # CACHE CONFIG
 # =====================
 config_cache = None
+
 
 def get_config():
     global config_cache
@@ -68,10 +74,12 @@ def get_config():
 
     return config_cache
 
+
 def vider_cache():
     global config_cache
     config_cache = None
     print("Cache reinitialise -> sera relu depuis BDD")
+
 
 # =====================
 # PYDANTIC MODELS
@@ -85,6 +93,7 @@ class ConfigCreate(BaseModel):
     email_destinataire      : str
     intervalle_verification : int
 
+
 class ConfigUpdate(BaseModel):
     pays                    : Optional[str]   = None
     temp_ideale             : Optional[float] = None
@@ -94,16 +103,22 @@ class ConfigUpdate(BaseModel):
     email_destinataire      : Optional[str]   = None
     intervalle_verification : Optional[int]   = None
 
+
 class LotCreate(BaseModel):
     lot_id      : str
     pays        : str
     exploitation: str
     entrepot    : str
 
+
 # =====================
 # ENVOI EMAIL
 # =====================
 def send_email(receiver_email, subject, body):
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        print("SENDER_EMAIL ou SENDER_PASSWORD non definis — email non envoye")
+        return
+
     try:
         msg = MIMEMultipart()
         msg['From']    = SENDER_EMAIL
@@ -120,6 +135,7 @@ def send_email(receiver_email, subject, body):
 
     except Exception as e:
         print(f"Erreur envoi email : {e}")
+
 
 # =====================
 # VÉRIFICATION ALERTES MESURES
@@ -141,7 +157,11 @@ def verifier_alertes_mesures(temperature, humidite):
 
             alerte = Alerte(
                 type_alerte = "temperature",
-                message     = f"Temperature anormale : {temperature}C (ideal: {config['temp_ideale']}C +/- {config['tolerance_temp']}C)",
+                message     = (
+                    f"Temperature anormale : {temperature}C "
+                    f"(ideal: {config['temp_ideale']}C "
+                    f"+/- {config['tolerance_temp']}C)"
+                ),
                 valeur      = temperature,
                 seuil_min   = config["temp_ideale"] - config["tolerance_temp"],
                 seuil_max   = config["temp_ideale"] + config["tolerance_temp"],
@@ -150,7 +170,7 @@ def verifier_alertes_mesures(temperature, humidite):
             )
             db.add(alerte)
             db.commit()
-            print(f"Alerte temperature sauvegardee en BDD")
+            print("Alerte temperature sauvegardee en BDD")
 
             alertes_email.append(
                 f"- Temperature: {temperature}C "
@@ -164,7 +184,11 @@ def verifier_alertes_mesures(temperature, humidite):
 
             alerte = Alerte(
                 type_alerte = "humidite",
-                message     = f"Humidite anormale : {humidite}% (ideal: {config['hum_ideale']}% +/- {config['tolerance_hum']}%)",
+                message     = (
+                    f"Humidite anormale : {humidite}% "
+                    f"(ideal: {config['hum_ideale']}% "
+                    f"+/- {config['tolerance_hum']}%)"
+                ),
                 valeur      = humidite,
                 seuil_min   = config["hum_ideale"] - config["tolerance_hum"],
                 seuil_max   = config["hum_ideale"] + config["tolerance_hum"],
@@ -173,7 +197,7 @@ def verifier_alertes_mesures(temperature, humidite):
             )
             db.add(alerte)
             db.commit()
-            print(f"Alerte humidite sauvegardee en BDD")
+            print("Alerte humidite sauvegardee en BDD")
 
             alertes_email.append(
                 f"- Humidite: {humidite}% "
@@ -184,32 +208,30 @@ def verifier_alertes_mesures(temperature, humidite):
         # Envoi email si alertes
         if alertes_email:
             details = "\n".join(alertes_email)
-            body = f"""
-                        Bonjour 👋,
+            body = f"""Bonjour,
 
-                        🔍 Une anomalie a été détectée dans les conditions de stockage.
+Une anomalie a ete detectee dans les conditions de stockage.
 
-                        📊 Détails de l'alerte :
-                        {details}
+Details de l'alerte :
+{details}
 
-                        Pays     : {config['pays']}
-                        Date     : {datetime.utcnow()}
+Pays : {config['pays']}
+Date : {datetime.utcnow()}
 
-                        Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
+Veuillez consulter le tableau de bord pour plus de details.
 
-                        Merci de votre vigilance ! ✅
-
-                        Cordialement,
-                        L'équipe FutureKawa 🤖
-                                    """
+Cordialement,
+L'equipe FutureKawa
+"""
             send_email(
                 config["email_destinataire"],
-                "🚨 Alerte : Anomalie détectée dans les conditions de stockage !",
+                "ALERTE : Anomalie detectee dans les conditions de stockage !",
                 body
             )
 
     finally:
         db.close()
+
 
 # =====================
 # VÉRIFICATION ALERTES LOTS
@@ -232,106 +254,104 @@ def verifier_alertes_lots():
         for lot in lots_anciens:
             lot.statut = "perime"
 
-            # Sauvegarde alerte en BDD
             alerte = Alerte(
                 type_alerte = "lot_perime",
-                message     = f"Lot {lot.lot_id} depasse 365 jours de stockage",
+                message     = (
+                    f"Lot {lot.lot_id} perime — stocke depuis "
+                    f"{lot.date_stockage.strftime('%Y-%m-%d')}"
+                ),
                 lot_id      = lot.lot_id,
                 date_alerte = datetime.utcnow(),
                 statut      = "non_lue"
             )
             db.add(alerte)
+
+        if lots_anciens:
             db.commit()
-            print(f"Alerte lot perime sauvegardee en BDD : {lot.lot_id}")
+            ids = [lot.lot_id for lot in lots_anciens]
+            print(f"{len(ids)} lot(s) marques perimes : {ids}")
 
-            body = f"""
-                Bonjour 👋,
+            body = f"""Bonjour,
 
-                🔍 Un lot dépasse 365 jours de stockage.
+Les lots suivants ont depasse la duree maximale de stockage (365 jours) :
 
-                📊 Détails du lot :
-                - Lot ID     : {lot.lot_id}
-                - Pays       : {lot.pays}
-                - Entrepot   : {lot.entrepot}
-                - Stocké le  : {lot.date_stockage}
-                - Date alerte: {datetime.utcnow()}
+{chr(10).join('- ' + lot.lot_id for lot in lots_anciens)}
 
-                Veuillez consulter le tableau de bord pour plus de détails et prendre les mesures nécessaires.
+Pays : {config['pays']}
+Date : {datetime.utcnow()}
 
-                Merci de votre vigilance ! ✅
+Veuillez prendre les mesures necessaires.
 
-                Cordialement,
-                L'équipe FutureKawa 🤖
-            """
+Cordialement,
+L'equipe FutureKawa
+"""
             send_email(
                 config["email_destinataire"],
-                f"🚨 Alerte : Lot périmé {lot.lot_id} !",
+                "ALERTE : Lots perimes detectes !",
                 body
             )
 
     finally:
         db.close()
 
-# =====================
-# TACHE PERIODIQUE LOTS
-# =====================
-def tache_periodique():
-    while True:
-        print("Verification periodique des lots...")
-        verifier_alertes_lots()
-
-        config = get_config()
-        if config is None:
-            intervalle = 86400
-        else:
-            intervalle = config["intervalle_verification"]
-
-        print(f"Prochaine verification dans {intervalle} secondes")
-        time.sleep(intervalle)
 
 # =====================
-# MQTT
+# MQTT — RECEPTION MESURES
 # =====================
-def on_connect(client, userdata, flags, rc):
-    print(f"MQTT connecte (code: {rc})")
-    client.subscribe(MQTT_TOPIC)
-
 def on_message(client, userdata, msg):
     try:
-        data        = json.loads(msg.payload.decode())
-        temperature = data.get("temperature")
-        humidite    = data.get("humidite")
+        payload = json.loads(msg.payload.decode())
+        temperature = payload.get("temperature")
+        humidite    = payload.get("humidite")
 
-        print(f"Mesure recue -> Temp: {temperature}C | Humidite: {humidite}%")
+        if temperature is None or humidite is None:
+            print(f"Payload MQTT invalide : {payload}")
+            return
 
         db = SessionLocal()
-        mesure = Mesure(
-            temperature=temperature,
-            humidite=humidite,
-            date_mesure=datetime.utcnow()
-        )
-        db.add(mesure)
-        db.commit()
-        db.close()
+        try:
+            mesure = Mesure(
+                temperature = temperature,
+                humidite    = humidite,
+                date_mesure = datetime.utcnow()
+            )
+            db.add(mesure)
+            db.commit()
+            print(f"Mesure MQTT sauvegardee : temp={temperature} hum={humidite}")
+        finally:
+            db.close()
 
         verifier_alertes_mesures(temperature, humidite)
 
     except Exception as e:
-        print(f"Erreur MQTT : {e}")
+        print(f"Erreur traitement message MQTT : {e}")
+
 
 def demarrer_mqtt():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
-
     while True:
         try:
-            print(f"Tentative connexion MQTT {MQTT_BROKER}:{MQTT_PORT}...")
+            client = mqtt.Client()
+            client.on_message = on_message
             client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            client.subscribe(MQTT_TOPIC)
+            print(f"MQTT connecte sur {MQTT_BROKER}:{MQTT_PORT} — topic: {MQTT_TOPIC}")
             client.loop_forever()
         except Exception as e:
             print(f"MQTT echec connexion : {e} - retry dans 5s")
             time.sleep(5)
+
+
+# =====================
+# TÂCHE PÉRIODIQUE — VÉRIFICATION LOTS
+# =====================
+def tache_periodique():
+    while True:
+        config = get_config()
+        intervalle = config["intervalle_verification"] if config else 3600
+        time.sleep(intervalle)
+        print("Tache periodique : verification des lots...")
+        verifier_alertes_lots()
+
 
 threading.Thread(target=demarrer_mqtt,    daemon=True).start()
 threading.Thread(target=tache_periodique, daemon=True).start()
@@ -342,75 +362,72 @@ threading.Thread(target=tache_periodique, daemon=True).start()
 
 @app.get("/")
 def accueil():
-    return {"message": "FutureKawa Backend Brésil - API en ligne"}
+    return {
+        "message": f"FutureKawa Backend {PAYS.capitalize()} - API en ligne",
+        "pays"   : PAYS
+    }
+
 
 # ── Mesures ──────────────────────────────────────────
 @app.get("/mesures")
 def get_mesures(db: Session = Depends(get_db)):
     return db.query(Mesure).order_by(Mesure.date_mesure.desc()).all()
 
+
 @app.post("/mesures", status_code=status.HTTP_201_CREATED)
 def creer_mesure(mesure_data: dict, db: Session = Depends(get_db)):
-    """Créer une mesure IoT"""
-    # Valider que 'temperature' est présent
     if "temperature" not in mesure_data or mesure_data["temperature"] is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Field 'temperature' is required"
-        )
-    
+        raise HTTPException(status_code=422, detail="Field 'temperature' is required")
+
     nouvelle_mesure = Mesure(
-        temperature=mesure_data["temperature"],
-        humidite=mesure_data.get("humidite"),  # Optionnel
-        date_mesure=datetime.utcnow()
+        temperature = mesure_data["temperature"],
+        humidite    = mesure_data.get("humidite"),
+        date_mesure = datetime.utcnow()
     )
     db.add(nouvelle_mesure)
     db.commit()
     db.refresh(nouvelle_mesure)
-    
-    # Vérifier les alertes
-    verifier_alertes_mesures(
-        nouvelle_mesure.temperature,
-        nouvelle_mesure.humidite
-    )
-    
+
+    verifier_alertes_mesures(nouvelle_mesure.temperature, nouvelle_mesure.humidite)
+
     return nouvelle_mesure
+
 
 @app.get("/mesures/dernieres/{n}")
 def get_dernieres_mesures(n: int, db: Session = Depends(get_db)):
     return db.query(Mesure).order_by(Mesure.date_mesure.desc()).limit(n).all()
 
+
 # ── Lots ─────────────────────────────────────────────
 @app.post("/lots", status_code=status.HTTP_201_CREATED)
 def creer_lot(lot: LotCreate, db: Session = Depends(get_db)):
     nouveau_lot = Lot(
-        lot_id=lot.lot_id,
-        pays=lot.pays,
-        exploitation=lot.exploitation,
-        entrepot=lot.entrepot,
-        date_stockage=datetime.utcnow(), 
-        statut="conforme"
+        lot_id       = lot.lot_id,
+        pays         = lot.pays,
+        exploitation = lot.exploitation,
+        entrepot     = lot.entrepot,
+        date_stockage = datetime.utcnow(),
+        statut       = "conforme"
     )
     db.add(nouveau_lot)
-    
     try:
         db.commit()
         db.refresh(nouveau_lot)
         return nouveau_lot
     except IntegrityError:
-        db.rollback()  # On nettoie la transaction SQLite avortée
-        raise HTTPException(
-            status_code=409,  
-            detail="Un lot avec cet identifiant existe déjà."
-        )
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Un lot avec cet identifiant existe deja.")
+
 
 @app.get("/lots")
 def get_lots(db: Session = Depends(get_db)):
     return db.query(Lot).order_by(Lot.date_stockage.asc()).all()
 
+
 @app.get("/lots/alertes/liste")
 def get_lots_alertes(db: Session = Depends(get_db)):
     return db.query(Lot).filter(Lot.statut != "conforme").all()
+
 
 @app.get("/lots/{lot_id}")
 def get_lot(lot_id: str, db: Session = Depends(get_db)):
@@ -418,6 +435,7 @@ def get_lot(lot_id: str, db: Session = Depends(get_db)):
     if not lot:
         raise HTTPException(status_code=404, detail="Lot non trouve")
     return lot
+
 
 @app.put("/lots/{lot_id}/statut")
 def update_statut(lot_id: str, statut: str, db: Session = Depends(get_db)):
@@ -429,23 +447,22 @@ def update_statut(lot_id: str, statut: str, db: Session = Depends(get_db)):
     db.refresh(lot)
     return lot
 
+
 # ── Config ───────────────────────────────────────────
 @app.post("/config")
 def creer_config(config: ConfigCreate, db: Session = Depends(get_db)):
     existing = db.query(Config).first()
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Config existe deja - utilisez PUT /config"
-        )
+        raise HTTPException(status_code=400, detail="Config existe deja - utilisez PUT /config")
+
     nouvelle_config = Config(
-        pays=config.pays,
-        temp_ideale=config.temp_ideale,
-        hum_ideale=config.hum_ideale,
-        tolerance_temp=config.tolerance_temp,
-        tolerance_hum=config.tolerance_hum,
-        email_destinataire=config.email_destinataire,
-        intervalle_verification=config.intervalle_verification
+        pays                    = config.pays,
+        temp_ideale             = config.temp_ideale,
+        hum_ideale              = config.hum_ideale,
+        tolerance_temp          = config.tolerance_temp,
+        tolerance_hum           = config.tolerance_hum,
+        email_destinataire      = config.email_destinataire,
+        intervalle_verification = config.intervalle_verification
     )
     db.add(nouvelle_config)
     db.commit()
@@ -453,24 +470,20 @@ def creer_config(config: ConfigCreate, db: Session = Depends(get_db)):
     vider_cache()
     return nouvelle_config
 
+
 @app.get("/config")
 def get_config_api(db: Session = Depends(get_db)):
     config = db.query(Config).first()
     if not config:
-        raise HTTPException(
-            status_code=404,
-            detail="Aucune config - utilisez POST /config"
-        )
+        raise HTTPException(status_code=404, detail="Aucune config - utilisez POST /config")
     return config
+
 
 @app.put("/config")
 def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
     existing = db.query(Config).first()
     if not existing:
-        raise HTTPException(
-            status_code=404,
-            detail="Aucune config - utilisez POST /config"
-        )
+        raise HTTPException(status_code=404, detail="Aucune config - utilisez POST /config")
 
     if config.pays                    is not None: existing.pays                    = config.pays
     if config.temp_ideale             is not None: existing.temp_ideale             = config.temp_ideale
@@ -485,6 +498,7 @@ def update_config(config: ConfigUpdate, db: Session = Depends(get_db)):
     vider_cache()
     return {"message": "Config mise a jour", "config": existing}
 
+
 # ── Alertes ──────────────────────────────────────────
 @app.get("/alertes")
 def get_alertes(db: Session = Depends(get_db)):
@@ -493,35 +507,35 @@ def get_alertes(db: Session = Depends(get_db)):
 
 @app.post("/alertes", status_code=status.HTTP_201_CREATED)
 def creer_alerte(alerte_data: dict, db: Session = Depends(get_db)):
-    """Créer une alerte manuelle"""
     nouvelle_alerte = Alerte(
-        type_alerte=alerte_data.get("type_alerte"),
-        message=alerte_data.get("message"),
-        valeur=alerte_data.get("valeur"),
-        seuil_min=alerte_data.get("seuil_min"),
-        seuil_max=alerte_data.get("seuil_max"),
-        lot_id=alerte_data.get("lot_id"),
-        date_alerte=datetime.utcnow(),
-        statut="non_lue"  # ← Par défaut "non_lue"
+        type_alerte = alerte_data.get("type_alerte"),
+        message     = alerte_data.get("message"),
+        valeur      = alerte_data.get("valeur"),
+        seuil_min   = alerte_data.get("seuil_min"),
+        seuil_max   = alerte_data.get("seuil_max"),
+        lot_id      = alerte_data.get("lot_id"),
+        date_alerte = datetime.utcnow(),
+        statut      = "non_lue"
     )
     db.add(nouvelle_alerte)
     db.commit()
     db.refresh(nouvelle_alerte)
     return nouvelle_alerte
 
+
 @app.patch("/alertes/{alerte_id}")
 def update_alerte(alerte_id: int, update_data: dict, db: Session = Depends(get_db)):
-    """Mettre à jour une alerte (PATCH)"""
     alerte = db.query(Alerte).filter(Alerte.id == alerte_id).first()
     if not alerte:
         raise HTTPException(status_code=404, detail="Alerte non trouvee")
-    
+
     if "statut" in update_data:
         alerte.statut = update_data["statut"]
-    
+
     db.commit()
     db.refresh(alerte)
     return alerte
+
 
 @app.get("/alertes/non-lues")
 def get_alertes_non_lues(db: Session = Depends(get_db)):
@@ -529,11 +543,13 @@ def get_alertes_non_lues(db: Session = Depends(get_db)):
         Alerte.statut == "non_lue"
     ).order_by(Alerte.date_alerte.desc()).all()
 
+
 @app.get("/alertes/count")
 def get_alertes_count(db: Session = Depends(get_db)):
     total    = db.query(Alerte).count()
     non_lues = db.query(Alerte).filter(Alerte.statut == "non_lue").count()
     return {"total": total, "non_lues": non_lues}
+
 
 @app.put("/alertes/{alerte_id}/lue")
 def marquer_alerte_lue(alerte_id: int, db: Session = Depends(get_db)):
@@ -545,6 +561,7 @@ def marquer_alerte_lue(alerte_id: int, db: Session = Depends(get_db)):
     db.refresh(alerte)
     return alerte
 
+
 @app.put("/alertes/toutes/lues")
 def marquer_toutes_lues(db: Session = Depends(get_db)):
     db.query(Alerte).filter(
@@ -552,6 +569,7 @@ def marquer_toutes_lues(db: Session = Depends(get_db)):
     ).update({"statut": "lue"})
     db.commit()
     return {"message": "Toutes les alertes marquees comme lues"}
+
 
 @app.delete("/alertes/{alerte_id}")
 def supprimer_alerte(alerte_id: int, db: Session = Depends(get_db)):
@@ -561,6 +579,7 @@ def supprimer_alerte(alerte_id: int, db: Session = Depends(get_db)):
     db.delete(alerte)
     db.commit()
     return {"message": "Alerte supprimee"}
+
 
 @app.delete("/alertes")
 def supprimer_toutes_alertes(db: Session = Depends(get_db)):

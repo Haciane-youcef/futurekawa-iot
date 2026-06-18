@@ -379,13 +379,18 @@ pipeline {
         // ════════════════════════════════════════════════════
         stage('9 — Deploy local') {
             steps {
-                echo '====== STAGE 9 : Déploiement local ======'
+                echo '====== STAGE 9 : Déploiement local sécurisé ======'
                 dir('backend-pays') {
-                    withCredentials([usernamePassword(
-                        credentialsId: "${CREDENTIAL_ID}",
-                        usernameVariable: 'DH_USER',
-                        passwordVariable: 'DH_PASS'
-                    )]) {
+                    // On récupère tous les credentials nécessaires
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: "${CREDENTIAL_ID}", 
+                            usernameVariable: 'DH_USER', 
+                            passwordVariable: 'DH_PASS'
+                        ),
+                        string(credentialsId: 'smtp-email',    secretVariable: 'SENDER_EMAIL'),
+                        string(credentialsId: 'smtp-password', secretVariable: 'SENDER_PASSWORD')
+                    ]) {
                         sh '''
                             # ── 1. Config mosquitto dans un volume nommé ──
                             docker volume create futurekawa_mosquitto_config 2>/dev/null || true
@@ -396,15 +401,19 @@ pipeline {
                             # ── 2. Pull explicite depuis Docker Hub ──
                             echo "${DH_PASS}" | docker login -u "${DH_USER}" --password-stdin
                             docker pull "${IMAGE_FULL}:${IMAGE_TAG}"
-                            docker pull "${IMAGE_FULL}:latest"
                             docker logout
 
                             # ── 3. Arrêt propre de l'ancienne stack ──
                             docker compose down --remove-orphans 2>/dev/null || true
                             sleep 5
 
-                            # ── 4. Démarrage avec la nouvelle image ──
-                            BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" docker compose up -d
+                            # ── 4. Démarrage avec injection des secrets en variables d'environnement ──
+                            # Les variables SENDER_EMAIL et SENDER_PASSWORD sont ici lues par docker-compose
+                            # si vous les avez déclarées avec ${VARIABLE} dans votre docker-compose.yml
+                            SENDER_EMAIL="${SENDER_EMAIL}" \
+                            SENDER_PASSWORD="${SENDER_PASSWORD}" \
+                            BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" \
+                            docker compose up -d
 
                             # ── 5. Health check via Docker inspect ──
                             echo "Attente démarrage du backend..."
