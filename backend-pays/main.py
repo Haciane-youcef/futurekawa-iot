@@ -23,8 +23,7 @@ from models import (
     AlerteMesure, AlerteLot, Utilisateur, Role,
     UtilisateurRole, UtilisateurExploitation, UtilisateurEntrepot
 )
-from auth_middleware import can_access_entrepot, get_current_user_optional
-
+from auth_middleware import get_current_user, require_role, can_access_entrepot
 # =====================
 # INITIALISATION
 # =====================
