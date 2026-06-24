@@ -2,7 +2,15 @@
 conftest.py — Fixtures partagées pour les tests BDD FutureKawa
 Base SQLite en mémoire (pas de PostgreSQL requis dans le pipeline CI)
 """
+import os
 import pytest
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./futurekawa_bdd_test.db")
+os.environ.setdefault("MQTT_BROKER", "localhost")
+os.environ.setdefault("MQTT_PORT", "1883")
+os.environ.setdefault("AUTH_REQUIRED", "false")
+os.environ.setdefault("JWT_SECRET", "test-secret")
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

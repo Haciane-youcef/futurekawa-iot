@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import paho.mqtt.client as mqtt
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -22,6 +23,7 @@ from models import (
     AlerteMesure, AlerteLot, Utilisateur, Role,
     UtilisateurRole, UtilisateurExploitation, UtilisateurEntrepot
 )
+from auth_middleware import can_access_entrepot, get_current_user_optional
 
 # =====================
 # INITIALISATION
@@ -31,11 +33,20 @@ PAYS = os.getenv("PAYS", "inconnu")
 
 app = FastAPI(title=f"FutureKawa - Backend {PAYS.capitalize()}")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 Base.metadata.create_all(bind=engine)
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT   = int(os.getenv("MQTT_PORT", 1883))
 MQTT_TOPIC  = "capteur/mesures"
+AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "true").lower() in ("1", "true", "yes", "on")
 
 # =====================
 # CONFIG EMAIL — 100% depuis variables d'environnement
@@ -121,7 +132,8 @@ class MesureCreate(BaseModel):
 class LotCreate(BaseModel):
     id_lot         : str
     id_entrepot    : int
-    id_utilisateur : int
+    id_utilisateur : Optional[int] = None
+    date_stockage  : Optional[datetime] = None
 
 
 # -- Utilisateur --
@@ -731,24 +743,55 @@ def get_dernieres_mesures(n: int, db: Session = Depends(get_db)):
     return db.query(Mesure).order_by(Mesure.date_mesure.desc()).limit(n).all()
 
 
+@app.get("/mesures/derniers-jours/{jours}")
+def get_mesures_derniers_jours(jours: int, db: Session = Depends(get_db)):
+    limite = datetime.utcnow() - timedelta(days=jours)
+    return db.query(Mesure).filter(
+        Mesure.date_mesure >= limite
+    ).order_by(Mesure.date_mesure.asc()).all()
+
+
+@app.get("/mesures/par-entrepot/{id_entrepot}")
+def get_mesures_par_entrepot(id_entrepot: int, db: Session = Depends(get_db)):
+    capteurs = db.query(Capteur).filter(Capteur.id_entrepot == id_entrepot).all()
+    capteur_ids = [capteur.id_capteur for capteur in capteurs]
+    return db.query(Mesure).filter(
+        Mesure.id_capteur.in_(capteur_ids)
+    ).order_by(Mesure.date_mesure.desc()).all()
+
+
 # ── Lots ─────────────────────────────────────────────
 @app.post("/lots", status_code=status.HTTP_201_CREATED)
-def creer_lot(lot: LotCreate, db: Session = Depends(get_db)):
+def creer_lot(
+    lot: LotCreate,
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+):
     entrepot = db.query(Entrepot).filter(Entrepot.id_entrepot == lot.id_entrepot).first()
     if not entrepot:
         raise HTTPException(status_code=404, detail="Entrepot introuvable")
 
-    utilisateur = db.query(Utilisateur).filter(
-        Utilisateur.id_utilisateur == lot.id_utilisateur
-    ).first()
+    if current_user:
+        if not can_access_entrepot(lot.id_entrepot, current_user):
+            raise HTTPException(status_code=403, detail="Acces non autorise a cet entrepot")
+        try:
+            id_utilisateur = int(current_user["sub"])
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(status_code=401, detail="Token invalide : sub utilisateur manquant")
+    else:
+        if lot.id_utilisateur is None:
+            raise HTTPException(status_code=401, detail="Token requis")
+        id_utilisateur = lot.id_utilisateur
+
+    utilisateur = db.query(Utilisateur).filter(Utilisateur.id_utilisateur == id_utilisateur).first()
     if not utilisateur:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
 
     nouveau_lot = Lot(
         id_lot          = lot.id_lot,
         id_entrepot     = lot.id_entrepot,
-        id_utilisateur  = lot.id_utilisateur,
-        date_stockage   = datetime.utcnow(),
+        id_utilisateur  = id_utilisateur,
+        date_stockage   = lot.date_stockage or datetime.utcnow(),
         statut          = "conforme"
     )
     db.add(nouveau_lot)
@@ -788,6 +831,20 @@ def update_statut(lot_id: str, statut: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(lot)
     return lot
+
+
+@app.get("/lots/{lot_id}/mesures")
+def get_lot_mesures(lot_id: str, db: Session = Depends(get_db)):
+    lot = db.query(Lot).filter(Lot.id_lot == lot_id).first()
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot non trouve")
+
+    capteurs = db.query(Capteur).filter(Capteur.id_entrepot == lot.id_entrepot).all()
+    capteur_ids = [capteur.id_capteur for capteur in capteurs]
+    return db.query(Mesure).filter(
+        Mesure.id_capteur.in_(capteur_ids),
+        Mesure.date_mesure >= lot.date_stockage
+    ).order_by(Mesure.date_mesure.asc()).all()
 
 
 # ── Alertes Mesures ──────────────────────────────────
@@ -996,6 +1053,38 @@ def supprimer_toutes_alertes(db: Session = Depends(get_db)):
     db.query(AlerteLot).delete()
     db.commit()
     return {"message": "Toutes les alertes supprimees"}
+
+
+@app.get("/stats/dashboard")
+def get_stats_dashboard(db: Session = Depends(get_db)):
+    config = db.query(Config).first()
+
+    total_lots    = db.query(Lot).count()
+    conforme_lots = db.query(Lot).filter(Lot.statut == "conforme").count()
+    alerte_lots   = db.query(Lot).filter(Lot.statut == "en_alerte").count()
+    perime_lots   = db.query(Lot).filter(Lot.statut == "perime").count()
+
+    non_lues_mesures = db.query(AlerteMesure).filter(AlerteMesure.statut == "non_lue").count()
+    non_lues_lots    = db.query(AlerteLot).filter(AlerteLot.statut == "non_lue").count()
+
+    mesures = db.query(Mesure).order_by(Mesure.date_mesure.desc()).limit(500).all()
+    if mesures:
+        temp_moy = sum(mesure.temperature for mesure in mesures) / len(mesures)
+        hum_moy = sum(mesure.humidite for mesure in mesures) / len(mesures)
+    else:
+        temp_moy = 0
+        hum_moy = 0
+
+    return {
+        "pays":             config.pays if config else "inconnu",
+        "total_lots":       total_lots,
+        "conforme_lots":    conforme_lots,
+        "alerte_lots":      alerte_lots,
+        "perime_lots":      perime_lots,
+        "alertes_actives":  non_lues_mesures + non_lues_lots,
+        "temp_moyenne":     round(temp_moy, 1),
+        "humidite_moyenne": round(hum_moy, 1),
+    }
 
 
 # ── Utilisateurs ─────────────────────────────────────

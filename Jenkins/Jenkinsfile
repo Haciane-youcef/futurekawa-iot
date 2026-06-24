@@ -15,6 +15,9 @@
 //  CREDENTIALS Jenkins requis :
 //    - "dockerhub-creds" : Username/Password (token Docker Hub)
 //    - "SONAR_TOKEN"     : Secret text (token SonarQube)
+//    - "jwt-secret"      : Secret text (secret JWT partage backend-central/backend-pays)
+//    - "smtp-email"      : Secret text (adresse email emettrice)
+//    - "smtp-password"   : Secret text (mot de passe application SMTP)
 // ============================================================
 
 pipeline {
@@ -37,6 +40,8 @@ pipeline {
         DATABASE_URL      = "sqlite:///./futurekawa_test.db"
         MQTT_BROKER       = "localhost"
         MQTT_PORT         = "1883"
+        AUTH_REQUIRED     = "false"
+        JWT_SECRET        = "test-secret"
 
         // ── Chemins rapports ─────────────────────────────────
         TEST_RESULTS_DIR  = "test-results"
@@ -137,8 +142,8 @@ pipeline {
                 echo '====== STAGE 3 : Tests unitaires ======'
                 dir('backend-pays') {
                     sh '''
+                        pip install -r requirements.txt --quiet --break-system-packages
                         pip install pytest pytest-html coverage pytest-cov httpx --quiet --break-system-packages
-                        pip install --upgrade fastapi uvicorn sqlalchemy pydantic paho-mqtt==1.6.1 --quiet --break-system-packages
 
                         mkdir -p "${TEST_RESULTS_DIR}/unit" "${COVERAGE_DIR}"
 
@@ -389,7 +394,8 @@ pipeline {
                             passwordVariable: 'DH_PASS'
                         ),
                         string(credentialsId: 'smtp-email',    variable: 'SENDER_EMAIL'),
-                        string(credentialsId: 'smtp-password', variable: 'SENDER_PASSWORD')
+                        string(credentialsId: 'smtp-password', variable: 'SENDER_PASSWORD'),
+                        string(credentialsId: 'jwt-secret',    variable: 'JWT_SECRET')
                     ]) {
                         sh '''
                             # ── 1. Config mosquitto dans un volume nommé ──
@@ -412,6 +418,7 @@ pipeline {
                             # si vous les avez déclarées avec ${VARIABLE} dans votre docker-compose.yml
                             SENDER_EMAIL="${SENDER_EMAIL}" \
                             SENDER_PASSWORD="${SENDER_PASSWORD}" \
+                            JWT_SECRET="${JWT_SECRET}" \
                             BACKEND_IMAGE="${IMAGE_FULL}:${IMAGE_TAG}" \
                             docker compose up -d
 

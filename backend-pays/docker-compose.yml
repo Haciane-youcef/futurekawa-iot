@@ -1,74 +1,53 @@
-version: '3.8'
-
-# ================================================================
-#  FutureKawa — Stack Brésil
-#
-#  Une seule image générique josef3215/futurekawa-backend-pays
-#  Le pays et tous les paramètres sont injectés par variables d'env.
-#
-#  Pour ajouter un pays :
-#    1. Copier ce fichier → docker-compose.equateur.yml
-#    2. Changer PAYS, DATABASE_URL, les ports, MQTT_BROKER
-#    3. docker compose -f docker-compose.equateur.yml up -d
-# ================================================================
-
 services:
-
-  # ── Base de données PostgreSQL (Brésil) ──────────────────────
-  postgres:
+  postgres-bresil:
     image: postgres:15
     container_name: futurekawa-db-bresil
     environment:
-      POSTGRES_USER:     futurekawa
-      POSTGRES_PASSWORD: futurekawa123
-      POSTGRES_DB:       futurekawa_bresil
+      POSTGRES_USER: ${BRESIL_DB_USER:-futurekawa}
+      POSTGRES_PASSWORD: ${BRESIL_DB_PASSWORD:-futurekawa123}
+      POSTGRES_DB: ${BRESIL_DB_NAME:-futurekawa_bresil}
     ports:
-      - "5432:5432"
+      - "${BRESIL_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data_bresil:/var/lib/postgresql/data
     healthcheck:
-      test:     ["CMD-SHELL", "pg_isready -U futurekawa"]
+      test: ["CMD-SHELL", "pg_isready -U ${BRESIL_DB_USER:-futurekawa} -d ${BRESIL_DB_NAME:-futurekawa_bresil}"]
       interval: 5s
-      timeout:  5s
-      retries:  5
+      timeout: 5s
+      retries: 5
 
-  # ── Broker MQTT Mosquitto (Brésil) ───────────────────────────
-  mosquitto:
+  mosquitto-bresil:
     image: eclipse-mosquitto:2
     container_name: futurekawa-mqtt-bresil
     ports:
-      - "1883:1883"
+      - "${BRESIL_MQTT_PORT:-1883}:1883"
     volumes:
-      - futurekawa_mosquitto_config:/mosquitto/config/
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
-  # ── Backend Python FastAPI (image générique) ─────────────────
-  backend:
+  backend-pays-bresil:
     image: ${BACKEND_IMAGE:-josef3215/futurekawa-backend-pays:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: futurekawa-backend-bresil
-    ports:
-      - "8000:8000"        
     environment:
-
       PAYS: bresil
-      DATABASE_URL: postgresql://futurekawa:futurekawa123@postgres:5432/futurekawa_bresil
-
-      # ── MQTT ─────────────────────────────────────────────────
-      MQTT_BROKER: mosquitto
-      MQTT_PORT:   "1883"
-
-      SMTP_SERVER:     smtp.gmail.com
-      SMTP_PORT:       "587"
-      SENDER_EMAIL:    ${SENDER_EMAIL:-}
+      DATABASE_URL: postgresql://${BRESIL_DB_USER:-futurekawa}:${BRESIL_DB_PASSWORD:-futurekawa123}@postgres-bresil:5432/${BRESIL_DB_NAME:-futurekawa_bresil}
+      MQTT_BROKER: mosquitto-bresil
+      MQTT_PORT: 1883
+      JWT_SECRET: ${JWT_SECRET:-futurekawa-dev-secret-change-in-prod}
+      SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SENDER_EMAIL: ${SENDER_EMAIL:-}
       SENDER_PASSWORD: ${SENDER_PASSWORD:-}
-
+    ports:
+      - "${BRESIL_BACKEND_PORT:-8000}:8000"
     depends_on:
-      postgres:
+      postgres-bresil:
         condition: service_healthy
-      mosquitto:
+      mosquitto-bresil:
         condition: service_started
     restart: always
 
 volumes:
   postgres_data_bresil:
-  futurekawa_mosquitto_config:
-    external: true

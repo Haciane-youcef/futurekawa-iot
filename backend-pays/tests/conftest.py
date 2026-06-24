@@ -12,6 +12,8 @@ import pytest
 os.environ.setdefault("DATABASE_URL", "sqlite:///./futurekawa_test.db")
 os.environ.setdefault("MQTT_BROKER",  "localhost")
 os.environ.setdefault("MQTT_PORT",    "1883")
+os.environ.setdefault("AUTH_REQUIRED", "false")
+os.environ.setdefault("JWT_SECRET", "test-secret")
 
 # ── Path Python ──────────────────────────────────────────────
 ROOT = os.path.dirname(os.path.abspath(__file__))

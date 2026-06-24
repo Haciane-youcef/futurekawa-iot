@@ -10,6 +10,8 @@ import pytest
 os.environ["DATABASE_URL"] = "sqlite:///./futurekawa_integration_test.db"
 os.environ["MQTT_BROKER"]  = "localhost"
 os.environ["MQTT_PORT"]    = "1883"
+os.environ["AUTH_REQUIRED"] = "false"
+os.environ["JWT_SECRET"] = "test-secret"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
@@ -50,10 +52,14 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="module")
 def client():
+    app.dependency_overrides[get_db] = override_get_db
+    Base.metadata.drop_all(bind=engine_test)
     Base.metadata.create_all(bind=engine_test)
     with TestClient(app) as c:
         yield c
     Base.metadata.drop_all(bind=engine_test)
+    engine_test.dispose()
+    app.dependency_overrides.clear()
     if os.path.exists("futurekawa_integration_test.db"):
         os.remove("futurekawa_integration_test.db")
 
