@@ -11,12 +11,13 @@ os.environ["DATABASE_URL"] = "sqlite:///./futurekawa_integration_test.db"
 os.environ["MQTT_BROKER"]  = "localhost"
 os.environ["MQTT_PORT"]    = "1883"
 os.environ["AUTH_REQUIRED"] = "false"
-os.environ["JWT_SECRET"] = "test-secret"
+os.environ["JWT_SECRET"]    = "test-secret"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from jose import jwt as jose_jwt
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -27,6 +28,18 @@ from models import (
     Base, Config, Exploitation, Entrepot, Capteur, Mesure, Lot,
     AlerteMesure, AlerteLot, Utilisateur
 )
+
+# ─────────────────────────────────────────────────────────────
+# Token JWT de test pour les routes protégées
+# ─────────────────────────────────────────────────────────────
+
+TEST_TOKEN = jose_jwt.encode(
+    {"sub": "test-user", "email": "test@futurekawa.com"},
+    "test-secret",
+    algorithm="HS256"
+)
+AUTH_HEADERS = {"Authorization": f"Bearer {TEST_TOKEN}"}
+
 
 # ─────────────────────────────────────────────────────────────
 # Setup BDD de test
@@ -406,7 +419,7 @@ class TestCapteurs:
 
 
 # ════════════════════════════════════════════════════════════
-# LOTS
+# LOTS  ← Auth headers ajoutés sur POST et PUT
 # ════════════════════════════════════════════════════════════
 
 class TestLots:
@@ -427,7 +440,7 @@ class TestLots:
             "id_lot": "LOT-INT-001",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         assert response.status_code == 201
         data = response.json()
         assert _get_id(data, "id_lot", "lot_id") == "LOT-INT-001"
@@ -439,7 +452,7 @@ class TestLots:
             "id_lot": "LOT-INT-DATE",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         assert "date_stockage" in response.json()
         assert response.json()["date_stockage"] is not None
 
@@ -454,7 +467,7 @@ class TestLots:
             "id_lot": "LOT-INT-VISIBLE",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         lot_ids = [_get_id(l, "id_lot", "lot_id") for l in client.get("/lots").json()]
         assert "LOT-INT-VISIBLE" in lot_ids
 
@@ -464,7 +477,7 @@ class TestLots:
             "id_lot": "LOT-INT-READ",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         response = client.get("/lots/LOT-INT-READ")
         assert response.status_code == 200
         assert _get_id(response.json(), "id_lot", "lot_id") == "LOT-INT-READ"
@@ -479,8 +492,8 @@ class TestLots:
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
         }
-        client.post("/lots", json=payload)
-        response = client.post("/lots", json=payload)
+        client.post("/lots", json=payload, headers=AUTH_HEADERS)
+        response = client.post("/lots", json=payload, headers=AUTH_HEADERS)
         assert response.status_code in [400, 409, 422, 500]
 
     def test_modifier_statut_en_alerte(self, client):
@@ -489,8 +502,12 @@ class TestLots:
             "id_lot": "LOT-INT-STATUT",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
-        response = client.put("/lots/LOT-INT-STATUT/statut", params={"statut": "en_alerte"})
+        }, headers=AUTH_HEADERS)
+        response = client.put(
+            "/lots/LOT-INT-STATUT/statut",
+            params={"statut": "en_alerte"},
+            headers=AUTH_HEADERS
+        )
         assert response.status_code == 200
         assert response.json()["statut"] == "en_alerte"
 
@@ -500,13 +517,21 @@ class TestLots:
             "id_lot": "LOT-INT-PERIME",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
-        response = client.put("/lots/LOT-INT-PERIME/statut", params={"statut": "perime"})
+        }, headers=AUTH_HEADERS)
+        response = client.put(
+            "/lots/LOT-INT-PERIME/statut",
+            params={"statut": "perime"},
+            headers=AUTH_HEADERS
+        )
         assert response.status_code == 200
         assert response.json()["statut"] == "perime"
 
     def test_modifier_statut_lot_inexistant_404(self, client):
-        response = client.put("/lots/LOT-INEXISTANT/statut", params={"statut": "perime"})
+        response = client.put(
+            "/lots/LOT-INEXISTANT/statut",
+            params={"statut": "perime"},
+            headers=AUTH_HEADERS
+        )
         assert response.status_code == 404
 
     def test_lots_tries_fifo(self, client):
@@ -515,12 +540,12 @@ class TestLots:
             "id_lot": "LOT-INT-FIFO-A",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         client.post("/lots", json={
             "id_lot": "LOT-INT-FIFO-B",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         lots = client.get("/lots").json()
         dates = [
             l["date_stockage"] for l in lots
@@ -534,7 +559,7 @@ class TestLots:
             "id_lot": "LOT-INT-CHAMPS",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         data = response.json()
         for champ in ["statut", "date_stockage"]:
             assert champ in data, f"Champ manquant : {champ}"
@@ -658,7 +683,7 @@ class TestAlertesLots:
             "id_lot": "LOT-ALERT-TEST",
             "id_entrepot": chain["entrepot_id"],
             "id_utilisateur": chain["utilisateur_id"]
-        })
+        }, headers=AUTH_HEADERS)
         response = client.post("/alertes-lots", json={
             "message": "Lot perime detecte",
             "id_lot": "LOT-ALERT-TEST"
