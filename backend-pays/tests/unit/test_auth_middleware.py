@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from jose import jwt
 
 from auth_middleware import JWT_ALGORITHM, JWT_SECRET, can_access_entrepot, get_user_entrepots
@@ -23,10 +24,12 @@ def test_can_access_entrepot_depuis_accesses_jwt():
         "accesses": [{"entrepots": [3, 4]}],
     }
 
-    assert get_user_entrepots(current_user) == [3, 4]
-    assert can_access_entrepot(3, current_user) is True
-    assert can_access_entrepot(9, current_user) is False
+    with patch("auth_middleware.AUTH_REQUIRED", True):
+        assert get_user_entrepots(current_user) == [3, 4]
+        assert can_access_entrepot(3, current_user) is True
+        assert can_access_entrepot(9, current_user) is False
 
 
 def test_admin_can_access_all_entrepots():
-    assert can_access_entrepot(999, {"roles": ["admin"], "accesses": []}) is True
+    with patch("auth_middleware.AUTH_REQUIRED", True):
+        assert can_access_entrepot(999, {"roles": ["admin"], "accesses": []}) is True
