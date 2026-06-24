@@ -1,12 +1,29 @@
 """
 Steps pytest-bdd — Feature: Gestion des lots de café
 """
+import os
 import pytest
 from pytest_bdd import given, when, then, parsers, scenarios
+from jose import jwt as jose_jwt
 
 from models import Lot
 
 scenarios("../features/lots.feature")
+
+# ─────────────────────────────────────────────────────────────
+# Token JWT pour les routes protégées
+# ─────────────────────────────────────────────────────────────
+
+JWT_SECRET_BDD = os.getenv("JWT_SECRET", "test-secret")
+
+
+def _auth_header(utilisateur_id):
+    token = jose_jwt.encode(
+        {"sub": str(utilisateur_id), "email": "bdd@futurekawa.com"},
+        JWT_SECRET_BDD,
+        algorithm="HS256"
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ════════════════════════════════════════════════════════════
@@ -28,7 +45,7 @@ def lot_existant(client, lot_id, setup_entrepot, setup_utilisateur):
         "id_lot": lot_id,
         "id_entrepot": entrepot_id,
         "id_utilisateur": utilisateur_id
-    })
+    }, headers=_auth_header(utilisateur_id))
     assert resp.status_code == 201, (
         f"Précondition échouée — impossible de créer {lot_id}: {resp.text}"
     )
@@ -53,7 +70,7 @@ def creer_lot(client, lot_id, pays, exploitation, entrepot,
         "id_lot": lot_id,
         "id_entrepot": entrepot_id,
         "id_utilisateur": utilisateur_id
-    })
+    }, headers=_auth_header(utilisateur_id))
 
 
 @when("je consulte la liste des lots", target_fixture="response")
