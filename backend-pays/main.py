@@ -764,7 +764,7 @@ def get_mesures_par_entrepot(id_entrepot: int, db: Session = Depends(get_db)):
 def creer_lot(
     lot: LotCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[dict] = Depends(get_current_user_optional),
+    current_user: Optional[dict] = Depends(get_current_user),
 ):
     entrepot = db.query(Entrepot).filter(Entrepot.id_entrepot == lot.id_entrepot).first()
     if not entrepot:
